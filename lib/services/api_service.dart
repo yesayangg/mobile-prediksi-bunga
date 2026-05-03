@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   // TODO: Ganti dengan base URL backend kamu
-  static const String baseUrl = 'https://api.tokobungamu.com/api';
+  static const String baseUrl = 'http://10.0.2.2:8000/api';
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
   static Future<String?> getToken() async {
@@ -129,7 +129,7 @@ class ApiService {
   }
 
   // PREDICTIONS
-  static Future<Map<String, dynamic>> getPredictions({
+  static Future<dynamic> getPredictions({
     int? flowerId,
     String period = '7days',
   }) async {
@@ -139,6 +139,11 @@ class ApiService {
     final uri =
         Uri.parse('$baseUrl/predictions').replace(queryParameters: params);
     final response = await http.get(uri, headers: await _headers());
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body);
+    }
+
     return _handleResponse(response);
   }
 

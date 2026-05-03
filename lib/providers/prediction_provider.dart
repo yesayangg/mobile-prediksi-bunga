@@ -17,12 +17,15 @@ class PredictionSummary {
   });
 
   factory PredictionSummary.fromJson(Map<String, dynamic> json) {
+    final predictedDemand = (json['prediction'] as num).toDouble();
+
     return PredictionSummary(
-      flowerId: json['flower_id'],
-      flowerName: json['flower_name'],
-      predictedDemand: (json['predicted_demand'] as num).toDouble(),
-      confidence: (json['confidence'] as num).toDouble(),
-      recommendation: json['recommendation'] ?? '',
+      flowerId: json['product_id'] ?? 0,
+      flowerName: json['nama_bunga'] ?? '-',
+      predictedDemand: predictedDemand,
+      confidence: 0.85,
+      recommendation:
+          'Siapkan stok sekitar ${predictedDemand.toStringAsFixed(0)} tangkai untuk periode berikutnya.',
     );
   }
 }
@@ -46,8 +49,13 @@ class PredictionProvider extends ChangeNotifier {
 
     try {
       final response = await ApiService.getPredictions(period: period);
-      _predictions = (response['data'] as List)
-          .map((e) => PredictionSummary.fromJson(e))
+
+      final List<dynamic> data = response is List
+          ? response
+          : (response['data'] as List? ?? []);
+
+      _predictions = data
+          .map((e) => PredictionSummary.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
       _errorMessage = e.toString();
