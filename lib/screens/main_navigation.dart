@@ -9,6 +9,7 @@ import 'stock_screen.dart';
 import 'transaction_screen.dart';
 import 'prediction_screen.dart';
 import 'notification_screen.dart';
+import 'profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -20,10 +21,15 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
+  void _goToPrediksi(bool isOwner) {
+    if (!isOwner) return;
+    // index Prediksi = 3 (Beranda=0, Stok=1, Kasir=2, Prediksi=3, Notif=4)
+    setState(() => _currentIndex = 3);
+  }
+
   @override
   void initState() {
     super.initState();
-    // Load initial data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<StockProvider>().loadStocks();
       context.read<NotificationProvider>().loadNotifications();
@@ -37,7 +43,7 @@ class _MainNavigationState extends State<MainNavigation> {
     final isOwner = auth.isOwner;
 
     final screens = [
-      const HomeScreen(),
+      HomeScreen(onNavigateToPrediksi: () => _goToPrediksi(isOwner)),
       const StockScreen(),
       const TransactionScreen(),
       if (isOwner) const PredictionScreen(),
