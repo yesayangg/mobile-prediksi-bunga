@@ -1,4 +1,3 @@
-import 'package:flower_shop/models/user.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -6,9 +5,12 @@ import '../providers/auth_provider.dart';
 import '../providers/stock_provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onNavigateToPrediksi;
+
+  const HomeScreen({super.key, this.onNavigateToPrediksi});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -19,6 +21,33 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loadingSummary = true;
   final _currencyFmt =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+
+  final List<Map<String, dynamic>> _predictions = [
+    {
+      'name': 'Mawar',
+      'icon': Icons.local_florist,
+      'color': Color(0xFFE53935),
+      'status': 'Naik',
+      'statusColor': Color(0xFF4CAF50),
+      'detail': 'Besok',
+    },
+    {
+      'name': 'Melati',
+      'icon': Icons.spa,
+      'color': Color(0xFFFFA726),
+      'status': 'Stabil',
+      'statusColor': Color(0xFF42A5F5),
+      'detail': '0 tlk',
+    },
+    {
+      'name': 'Anggrek',
+      'icon': Icons.emoji_nature,
+      'color': Color(0xFFAB47BC),
+      'status': 'Turun',
+      'statusColor': Color(0xFFEF5350),
+      'detail': '-Besok',
+    },
+  ];
 
   @override
   void initState() {
@@ -55,6 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('🏠 Beranda 🌸'),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {},
+          ),
+        ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -72,44 +107,44 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(greeting,
-                            style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 13,
-                                fontFamily: 'Poppins')),
                         Text(
-                          auth.user?.name ?? 'Pengguna',
+                          'Halo, ${auth.user?.name ?? 'Pengguna'}!',
                           style: const TextStyle(
-                              fontSize: 20,
+                              fontSize: 22,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.textPrimary,
                               fontFamily: 'Poppins'),
                         ),
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            auth.user?.role.label ?? '',
-                            style: const TextStyle(
-                                color: AppTheme.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'Poppins'),
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              '$greeting, selamat datang kembali ',
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 13,
+                                  fontFamily: 'Poppins'),
+                            ),
+                            const Text('👋', style: TextStyle(fontSize: 13)),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: AppTheme.primary.withOpacity(0.1),
-                    child: const Icon(Icons.person_outline,
-                        color: AppTheme.primary),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ProfileScreen()),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppTheme.primary.withOpacity(0.1),
+                      child: const Icon(Icons.person_outline,
+                          color: AppTheme.primary),
+                    ),
                   ),
                 ],
               ),
@@ -134,20 +169,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Expanded(
                       child: _StatCard(
-                        label: 'Transaksi',
-                        value: _summary?['today_transactions']?.toString() ?? '0',
-                        icon: Icons.receipt_long,
-                        color: AppTheme.info,
+                        label: 'Penjualan Hari Ini',
+                        value: _currencyFmt
+                            .format(_summary?['today_revenue'] ?? 0),
+                        icon: Icons.trending_up,
+                        color: const Color(0xFF4CAF50),
+                        bgColor: const Color(0xFFE8F5E9),
+                        isSmallText: true,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _StatCard(
-                        label: 'Pendapatan',
-                        value: _currencyFmt.format(_summary?['today_revenue'] ?? 0),
-                        icon: Icons.attach_money,
-                        color: AppTheme.success,
-                        isSmallText: true,
+                        label: 'Transaksi',
+                        value:
+                            _summary?['today_transactions']?.toString() ?? '0',
+                        icon: Icons.receipt_long,
+                        color: const Color(0xFF3F51B5),
+                        bgColor: const Color(0xFFE8EAF6),
                       ),
                     ),
                   ],
@@ -157,21 +196,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Expanded(
                       child: _StatCard(
-                        label: 'Jenis Bunga',
-                        value: stock.stocks.length.toString(),
+                        label: 'Stok Hampir Habis',
+                        value: stock.lowStockCount.toString(),
                         icon: Icons.inventory_2_outlined,
-                        color: AppTheme.primary,
+                        color: const Color(0xFFFF7043),
+                        bgColor: const Color(0xFFFBE9E7),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _StatCard(
-                        label: 'Stok Kritis',
-                        value: stock.lowStockCount.toString(),
-                        icon: Icons.warning_amber_outlined,
-                        color: stock.lowStockCount > 0
-                            ? AppTheme.warning
-                            : AppTheme.success,
+                        label: 'Akurasi Prediksi',
+                        value: '${_summary?['prediction_accuracy'] ?? 85}%',
+                        icon: Icons.auto_graph,
+                        color: const Color(0xFF9C27B0),
+                        bgColor: const Color(0xFFF3E5F5),
                       ),
                     ),
                   ],
@@ -186,7 +225,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.warning.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.warning.withOpacity(0.3)),
+                    border:
+                        Border.all(color: AppTheme.warning.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
@@ -205,79 +245,63 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text('Stok Kritis',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                        fontFamily: 'Poppins')),
-                const SizedBox(height: 8),
-                ...stock.lowStockItems.take(3).map(
-                      (item) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.bgCard,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: AppTheme.warning.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.local_florist,
-                                  color: AppTheme.warning, size: 20),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(item.name,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                          color: AppTheme.textPrimary,
-                                          fontFamily: 'Poppins')),
-                                  Text(item.category,
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppTheme.textSecondary,
-                                          fontFamily: 'Poppins')),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: item.isOutOfStock
-                                    ? AppTheme.error
-                                    : AppTheme.warning,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                item.isOutOfStock
-                                    ? 'Habis'
-                                    : '${item.stock} ${item.unit}',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'Poppins'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
               ],
+
+              // ── Prediksi Singkat ──
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Prediksi Singkat',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                          fontFamily: 'Poppins')),
+                  TextButton(
+                    onPressed: widget.onNavigateToPrediksi,
+                    child: const Text('Lihat Semua',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.primary,
+                            fontFamily: 'Poppins')),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Column(
+                  children: _predictions.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final pred = entry.value;
+                    final isLast = index == _predictions.length - 1;
+                    return Column(
+                      children: [
+                        _PredictionRow(
+                          name: pred['name'],
+                          icon: pred['icon'],
+                          iconColor: pred['color'],
+                          status: pred['status'],
+                          statusColor: pred['statusColor'],
+                          detail: pred['detail'],
+                        ),
+                        if (!isLast)
+                          Divider(
+                              height: 1,
+                              indent: 16,
+                              endIndent: 16,
+                              color: AppTheme.border),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -286,11 +310,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ── Stat Card ──────────────────────────────────────────────────────────────
+
 class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+  final Color bgColor;
   final bool isSmallText;
 
   const _StatCard({
@@ -298,6 +325,7 @@ class _StatCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    required this.bgColor,
     this.isSmallText = false,
   });
 
@@ -306,9 +334,8 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,26 +344,104 @@ class _StatCard extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 18, color: color),
           ),
           const SizedBox(height: 10),
-          Text(value,
-              style: TextStyle(
-                  fontSize: isSmallText ? 13 : 20,
-                  fontWeight: FontWeight.w700,
+          Text(
+            value,
+            style: TextStyle(
+                fontSize: isSmallText ? 13 : 20,
+                fontWeight: FontWeight.w700,
+                color: color,
+                fontFamily: 'Poppins'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+                fontFamily: 'Poppins'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Prediction Row ─────────────────────────────────────────────────────────
+
+class _PredictionRow extends StatelessWidget {
+  final String name;
+  final IconData icon;
+  final Color iconColor;
+  final String status;
+  final Color statusColor;
+  final String detail;
+
+  const _PredictionRow({
+    required this.name,
+    required this.icon,
+    required this.iconColor,
+    required this.status,
+    required this.statusColor,
+    required this.detail,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
                   color: AppTheme.textPrimary,
                   fontFamily: 'Poppins'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                  color: statusColor,
                   fontSize: 12,
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Poppins')),
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Poppins'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            detail,
+            style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+                fontFamily: 'Poppins'),
+          ),
         ],
       ),
     );
