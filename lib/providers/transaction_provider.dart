@@ -31,8 +31,7 @@ class TransactionProvider extends ChangeNotifier {
   double get amountPaid => _amountPaid;
   bool get cartIsEmpty => _cart.isEmpty;
 
-  double get totalAmount =>
-      _cart.fold(0, (sum, item) => sum + item.subtotal);
+  double get totalAmount => _cart.fold(0, (sum, item) => sum + item.subtotal);
   double get change => (_amountPaid - totalAmount).clamp(0, double.infinity);
   int get cartItemCount => _cart.fold(0, (sum, item) => sum + item.quantity);
 

@@ -83,7 +83,7 @@ class _FlowerPainter extends CustomPainter {
     ];
 
     final leafPaint = Paint()
-      ..color = const Color(0xFF90CC90).withOpacity(0.55)
+      ..color = const Color(0xFF90CC90).withValues(alpha: 0.55)
       ..style = PaintingStyle.fill;
 
     for (final l in leaves) {
@@ -122,7 +122,12 @@ class _FlowerPainter extends CustomPainter {
       );
     }
 
-    paint.color = color.withRed((color.red - 15).clamp(0, 255));
+    paint.color = Color.fromARGB(
+      color.a.toInt(),
+      ((color.r * 255).round() - 15).clamp(0, 255),
+      (color.g * 255).round(),
+      (color.b * 255).round(),
+    );
     for (var i = 0; i < 6; i++) {
       final rad = i * 60 * 3.14159 / 180;
       final px = cx + innerR * 0.65 * _cos(rad);
@@ -196,17 +201,17 @@ class _LoginCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.87),
+            color: Colors.white.withValues(alpha: 0.87),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFB45078).withOpacity(0.16),
+                color: const Color(0xFFB45078).withValues(alpha: 0.16),
                 blurRadius: 32,
                 offset: const Offset(0, 6),
               ),
             ],
             border: Border.all(
-              color: const Color(0xFFF0C4D4).withOpacity(0.6),
+              color: const Color(0xFFF0C4D4).withValues(alpha: 0.6),
             ),
           ),
           child: child,
@@ -235,7 +240,7 @@ class _CardHeader extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: const Color(0xFFF4B0C8).withOpacity(0.4),
+            color: const Color(0xFFF4B0C8).withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: const Color(0xFFD4537E), size: 22),
@@ -283,7 +288,7 @@ InputDecoration _inputDeco({
     prefixIcon: Icon(prefix, color: const Color(0xFFD4789A), size: 20),
     suffixIcon: suffix,
     filled: true,
-    fillColor: const Color(0xFFFFF0F5).withOpacity(0.7),
+    fillColor: const Color(0xFFFFF0F5).withValues(alpha: 0.7),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: Color(0xFFF0C4D4)),

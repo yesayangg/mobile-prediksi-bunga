@@ -183,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(24),
                     child: CircleAvatar(
                       radius: 24,
-                      backgroundColor: AppTheme.primary.withOpacity(0.1),
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
                       child: const Icon(
                         Icons.person_outline,
                         color: AppTheme.primary,
@@ -215,10 +215,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppTheme.error.withOpacity(0.08),
+                    color: AppTheme.error.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppTheme.error.withOpacity(0.25),
+                      color: AppTheme.error.withValues(alpha: 0.25),
                     ),
                   ),
                   child: const Text(
@@ -285,15 +285,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
 
               // Low stock alert
-              if (!_loadingSummary && _summary != null && lowStockCount > 0) ...[
+              if (!_loadingSummary &&
+                  _summary != null &&
+                  lowStockCount > 0) ...[
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppTheme.warning.withOpacity(0.1),
+                    color: AppTheme.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppTheme.warning.withOpacity(0.3),
+                      color: AppTheme.warning.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -422,7 +424,7 @@ class _StatCard extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 18, color: color),
@@ -483,7 +485,7 @@ class _PredictionRow extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.12),
+              color: iconColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: iconColor, size: 20),
@@ -503,7 +505,7 @@ class _PredictionRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.12),
+              color: statusColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
