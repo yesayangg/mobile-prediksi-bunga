@@ -153,7 +153,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
               // Toggle action
               Container(
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.08),
+                  color: AppTheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -162,15 +162,15 @@ class _AddStockSheetState extends State<AddStockSheet> {
                       label: 'Tambah Jumlah',
                       icon: Icons.add_box_outlined,
                       isActive: _action == StockActionType.adjust,
-                      onTap: () => setState(
-                          () => _action = StockActionType.adjust),
+                      onTap: () =>
+                          setState(() => _action = StockActionType.adjust),
                     ),
                     _TabButton(
                       label: 'Bunga Baru',
                       icon: Icons.local_florist_outlined,
                       isActive: _action == StockActionType.addNew,
-                      onTap: () => setState(
-                          () => _action = StockActionType.addNew),
+                      onTap: () =>
+                          setState(() => _action = StockActionType.addNew),
                     ),
                   ],
                 ),
@@ -230,15 +230,15 @@ class _AddStockSheetState extends State<AddStockSheet> {
       children: [
         // Pilih bunga
         DropdownButtonFormField<FlowerStock>(
-          value: _selectedFlower,
+          initialValue: _selectedFlower,
           decoration: _inputDecoration('Pilih Bunga', Icons.local_florist),
           items: widget.existingStocks
               .map((f) => DropdownMenuItem(
                     value: f,
                     child: Text(
                       '${f.name} (${f.stock} ${f.unit})',
-                      style: const TextStyle(
-                          fontFamily: 'Poppins', fontSize: 13),
+                      style:
+                          const TextStyle(fontFamily: 'Poppins', fontSize: 13),
                     ),
                   ))
               .toList(),
@@ -291,7 +291,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.06),
+              color: AppTheme.primary.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -344,8 +344,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
                 decoration:
                     _inputDecoration('Stok Awal', Icons.inventory_2_outlined),
                 style: const TextStyle(fontFamily: 'Poppins'),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Wajib diisi' : null,
+                validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
               ),
             ),
             const SizedBox(width: 10),
@@ -357,8 +356,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
                 decoration:
                     _inputDecoration('Min. Stok', Icons.warning_amber_outlined),
                 style: const TextStyle(fontFamily: 'Poppins'),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Wajib diisi' : null,
+                validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
               ),
             ),
           ],
@@ -371,11 +369,9 @@ class _AddStockSheetState extends State<AddStockSheet> {
                 controller: _priceCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration:
-                    _inputDecoration('Harga Jual', Icons.sell_outlined),
+                decoration: _inputDecoration('Harga Jual', Icons.sell_outlined),
                 style: const TextStyle(fontFamily: 'Poppins'),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Wajib diisi' : null,
+                validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
               ),
             ),
             const SizedBox(width: 10),
@@ -387,21 +383,20 @@ class _AddStockSheetState extends State<AddStockSheet> {
                 decoration:
                     _inputDecoration('Harga Modal', Icons.receipt_outlined),
                 style: const TextStyle(fontFamily: 'Poppins'),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Wajib diisi' : null,
+                validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
               ),
             ),
           ],
         ),
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
-          value: _unit,
+          initialValue: _unit,
           decoration: _inputDecoration('Satuan', Icons.straighten),
           items: _units
               .map((u) => DropdownMenuItem(
                     value: u,
-                    child: Text(u,
-                        style: const TextStyle(fontFamily: 'Poppins')),
+                    child:
+                        Text(u, style: const TextStyle(fontFamily: 'Poppins')),
                   ))
               .toList(),
           onChanged: (v) => setState(() => _unit = v!),
@@ -416,8 +411,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
       labelStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
       prefixIcon: Icon(icon, size: 18),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
 }
@@ -452,8 +446,7 @@ class _TabButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 16,
-                  color: isActive ? Colors.white : AppTheme.primary),
+                  size: 16, color: isActive ? Colors.white : AppTheme.primary),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -496,7 +489,7 @@ class _TypeButton extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.1) : Colors.transparent,
+            color: isActive ? color.withValues(alpha: 0.1) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isActive ? color : AppTheme.border,

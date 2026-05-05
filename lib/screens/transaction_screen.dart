@@ -123,8 +123,7 @@ class _NewTransactionTabState extends State<_NewTransactionTab> {
               ? const Center(child: CircularProgressIndicator())
               : GridView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     childAspectRatio: 1.5,
                     crossAxisSpacing: 10,
@@ -234,12 +233,12 @@ class _ProductCard extends StatelessWidget {
         color: outOfStock
             ? AppTheme.bgLight
             : inCartQty > 0
-                ? AppTheme.primary.withOpacity(0.05)
+                ? AppTheme.primary.withValues(alpha: 0.05)
                 : AppTheme.bgCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: inCartQty > 0
-              ? AppTheme.primary.withOpacity(0.3)
+              ? AppTheme.primary.withValues(alpha: 0.3)
               : AppTheme.border,
         ),
       ),
@@ -259,7 +258,7 @@ class _ProductCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppTheme.error.withOpacity(0.1),
+                    color: AppTheme.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
@@ -309,8 +308,7 @@ class _ProductCard extends StatelessWidget {
                     color: outOfStock ? AppTheme.border : AppTheme.primary,
                   ),
                 ),
-                child: const Text('+ Tambah',
-                    style: TextStyle(fontSize: 11)),
+                child: const Text('+ Tambah', style: TextStyle(fontSize: 11)),
               ),
             )
           else
@@ -366,8 +364,7 @@ class _CheckoutSheet extends StatelessWidget {
   final NumberFormat currencyFmt;
   final TextEditingController amountCtrl;
 
-  const _CheckoutSheet(
-      {required this.currencyFmt, required this.amountCtrl});
+  const _CheckoutSheet({required this.currencyFmt, required this.amountCtrl});
 
   @override
   Widget build(BuildContext context) {
@@ -488,7 +485,8 @@ class _CheckoutSheet extends StatelessWidget {
                         method.label,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: selected ? Colors.white : AppTheme.textSecondary,
+                          color:
+                              selected ? Colors.white : AppTheme.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           fontFamily: 'Poppins',
@@ -642,7 +640,7 @@ class _HistoryTabState extends State<_HistoryTab> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppTheme.success.withOpacity(0.1),
+                  color: AppTheme.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.receipt_long,

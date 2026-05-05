@@ -124,12 +124,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           decoration: BoxDecoration(
                             color: n.isRead
                                 ? AppTheme.bgCard
-                                : c.withOpacity(0.04),
+                                : c.withValues(alpha: 0.04),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                                 color: n.isRead
                                     ? AppTheme.border
-                                    : c.withOpacity(0.3)),
+                                    : c.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,7 +138,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: c.withOpacity(0.1),
+                                  color: c.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(_icon(n.type), color: c, size: 20),

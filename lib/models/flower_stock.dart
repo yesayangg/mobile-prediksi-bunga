@@ -48,17 +48,17 @@ class FlowerStock {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'category': category,
-    'stock': stock,
-    'min_stock': minStock,
-    'price': price,
-    'cost_price': costPrice,
-    'unit': unit,
-    'image_url': imageUrl,
-    'updated_at': updatedAt.toIso8601String(),
-  };
+        'id': id,
+        'name': name,
+        'category': category,
+        'stock': stock,
+        'min_stock': minStock,
+        'price': price,
+        'cost_price': costPrice,
+        'unit': unit,
+        'image_url': imageUrl,
+        'updated_at': updatedAt.toIso8601String(),
+      };
 }
 
 enum StockStatus { normal, low, outOfStock }
