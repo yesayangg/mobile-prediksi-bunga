@@ -26,25 +26,25 @@ class _HomeScreenState extends State<HomeScreen> {
     {
       'name': 'Mawar',
       'icon': Icons.local_florist,
-      'color': Color(0xFFE53935),
+      'color': const Color(0xFFE53935),
       'status': 'Naik',
-      'statusColor': Color(0xFF4CAF50),
+      'statusColor': const Color(0xFF4CAF50),
       'detail': 'Besok',
     },
     {
       'name': 'Melati',
       'icon': Icons.spa,
-      'color': Color(0xFFFFA726),
+      'color': const Color(0xFFFFA726),
       'status': 'Stabil',
-      'statusColor': Color(0xFF42A5F5),
+      'statusColor': const Color(0xFF42A5F5),
       'detail': '0 tlk',
     },
     {
       'name': 'Anggrek',
       'icon': Icons.emoji_nature,
-      'color': Color(0xFFAB47BC),
+      'color': const Color(0xFFAB47BC),
       'status': 'Turun',
-      'statusColor': Color(0xFFEF5350),
+      'statusColor': const Color(0xFFEF5350),
       'detail': '-Besok',
     },
   ];
@@ -370,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           detail: pred['detail'],
                         ),
                         if (!isLast)
-                          Divider(
+                          const Divider(
                             height: 1,
                             indent: 16,
                             endIndent: 16,
@@ -398,7 +398,6 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final Color bgColor;
-  final bool isSmallText;
 
   const _StatCard({
     required this.label,
@@ -406,7 +405,6 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.bgColor,
-    this.isSmallText = false,
   });
 
   @override
@@ -433,7 +431,7 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: isSmallText ? 13 : 20,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               color: color,
               fontFamily: 'Poppins',
