@@ -87,9 +87,9 @@ class _FlowerPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (final l in leaves) {
-      final cx = (l[0] as double) * w;
-      final cy = (l[1] as double) * h;
-      final angle = l[2] as double;
+      final cx = (l[0]) * w;
+      final cy = (l[1]) * h;
+      final angle = l[2];
       canvas.save();
       canvas.translate(cx, cy);
       canvas.rotate(angle);
