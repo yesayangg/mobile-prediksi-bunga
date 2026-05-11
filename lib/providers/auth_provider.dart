@@ -54,7 +54,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await ApiService.logout();
+    try {
+      await ApiService.logout();
+    } catch (_) {
+      // Tetap lanjut logout meski backend error
+      await ApiService.clearToken();
+    }
     _user = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();

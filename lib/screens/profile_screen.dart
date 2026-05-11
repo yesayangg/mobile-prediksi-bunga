@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -34,6 +35,12 @@ class ProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(ctx);
               await context.read<AuthProvider>().logout();
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
             },
             child: const Text('Keluar',
                 style: TextStyle(
@@ -41,9 +48,9 @@ class ProfileScreen extends StatelessWidget {
                     color: AppTheme.error,
                     fontWeight: FontWeight.w600)),
           ),
-        ],
-      ),
-    );
+        ],   // <-- penutup actions
+      ),     // <-- penutup AlertDialog
+    );       // <-- penutup showDialog
   }
 
   @override
