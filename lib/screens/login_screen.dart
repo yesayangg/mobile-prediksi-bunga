@@ -15,19 +15,12 @@ class _FlowerBackground extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background warna pink soft
           Container(color: const Color(0xFFFDE8F2)),
-
-          // Bunga-bunga SVG tersebar
           CustomPaint(
             painter: _FlowerPainter(),
             size: Size.infinite,
           ),
-
-          // Overlay tipis
           Container(color: const Color(0x26FFE6F0)),
-
-          // Konten
           SafeArea(child: child),
         ],
       ),
@@ -41,7 +34,6 @@ class _FlowerPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // Daftar bunga: [cx_ratio, cy_ratio, radius, color]
     final flowers = [
       [0.10, 0.08, 38.0, const Color(0xFFF4B0C8)],
       [0.38, 0.04, 28.0, const Color(0xFFFCE0EC)],
@@ -65,7 +57,6 @@ class _FlowerPainter extends CustomPainter {
       _drawFlower(canvas, cx, cy, r, color);
     }
 
-    // Kuncup kecil
     final buds = [
       [0.22, 0.18, const Color(0xFFF4B8CC)],
       [0.80, 0.20, const Color(0xFFFCE0EC)],
@@ -82,7 +73,6 @@ class _FlowerPainter extends CustomPainter {
       _drawBud(canvas, cx, cy, color);
     }
 
-    // Daun
     final leaves = [
       [0.20, 0.12, -0.6],
       [0.60, 0.16, 0.4],
@@ -93,7 +83,7 @@ class _FlowerPainter extends CustomPainter {
     ];
 
     final leafPaint = Paint()
-      ..color = const Color(0xFF90CC90).withOpacity(0.55)
+      ..color = const Color(0xFF90CC90).withValues(alpha: 0.55)
       ..style = PaintingStyle.fill;
 
     for (final l in leaves) {
@@ -117,7 +107,6 @@ class _FlowerPainter extends CustomPainter {
     final centerR = r * 0.32;
     final angles = [0, 45, 90, 135, 180, 225, 270, 315];
 
-    // Kelopak luar
     paint.color = color;
     for (final a in angles) {
       final rad = a * 3.14159 / 180;
@@ -133,8 +122,12 @@ class _FlowerPainter extends CustomPainter {
       );
     }
 
-    // Kelopak dalam
-    paint.color = color.withRed((color.red - 15).clamp(0, 255));
+    paint.color = Color.fromARGB(
+      color.a.toInt(),
+      ((color.r * 255).round() - 15).clamp(0, 255),
+      (color.g * 255).round(),
+      (color.b * 255).round(),
+    );
     for (var i = 0; i < 6; i++) {
       final rad = i * 60 * 3.14159 / 180;
       final px = cx + innerR * 0.65 * _cos(rad);
@@ -149,7 +142,6 @@ class _FlowerPainter extends CustomPainter {
       );
     }
 
-    // Tengah bunga (kuning lembut)
     paint.color = const Color(0xFFF9E4B0);
     canvas.drawCircle(Offset(cx, cy), centerR, paint);
   }
@@ -157,14 +149,12 @@ class _FlowerPainter extends CustomPainter {
   void _drawBud(Canvas canvas, double cx, double cy, Color color) {
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // Badan kuncup
     paint.color = color;
     canvas.drawOval(
       Rect.fromCenter(center: Offset(cx, cy + 4), width: 14, height: 20),
       paint,
     );
 
-    // Kelopak hijau
     paint.color = const Color(0xFF90C890);
     canvas.drawOval(
       Rect.fromCenter(center: Offset(cx, cy - 6), width: 12, height: 8),
@@ -176,7 +166,6 @@ class _FlowerPainter extends CustomPainter {
   double _sin(double rad) => _mathSin(rad);
 
   double _mathCos(double x) {
-    // Taylor series approximation
     double result = 1;
     double term = 1;
     for (int i = 1; i <= 10; i++) {
@@ -212,17 +201,17 @@ class _LoginCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.87),
+            color: Colors.white.withValues(alpha: 0.87),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFB45078).withOpacity(0.16),
+                color: const Color(0xFFB45078).withValues(alpha: 0.16),
                 blurRadius: 32,
                 offset: const Offset(0, 6),
               ),
             ],
             border: Border.all(
-              color: const Color(0xFFF0C4D4).withOpacity(0.6),
+              color: const Color(0xFFF0C4D4).withValues(alpha: 0.6),
             ),
           ),
           child: child,
@@ -232,13 +221,11 @@ class _LoginCard extends StatelessWidget {
   }
 }
 
-// ============================================================
-// SHARED WIDGET: Header baris logo + judul
-// ============================================================
 class _CardHeader extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+
   const _CardHeader({
     required this.icon,
     required this.title,
@@ -253,7 +240,7 @@ class _CardHeader extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: const Color(0xFFF4B0C8).withOpacity(0.4),
+            color: const Color(0xFFF4B0C8).withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: const Color(0xFFD4537E), size: 22),
@@ -286,9 +273,6 @@ class _CardHeader extends StatelessWidget {
   }
 }
 
-// ============================================================
-// INPUT DECORATION HELPER
-// ============================================================
 InputDecoration _inputDeco({
   required String label,
   required IconData prefix,
@@ -304,7 +288,7 @@ InputDecoration _inputDeco({
     prefixIcon: Icon(prefix, color: const Color(0xFFD4789A), size: 20),
     suffixIcon: suffix,
     filled: true,
-    fillColor: const Color(0xFFFFF0F5).withOpacity(0.7),
+    fillColor: const Color(0xFFFFF0F5).withValues(alpha: 0.7),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: Color(0xFFF0C4D4)),
@@ -325,7 +309,6 @@ InputDecoration _inputDeco({
   );
 }
 
-// Tombol utama
 ButtonStyle get _btnStyle => ElevatedButton.styleFrom(
       backgroundColor: const Color(0xFFD4537E),
       foregroundColor: Colors.white,
@@ -339,9 +322,6 @@ ButtonStyle get _btnStyle => ElevatedButton.styleFrom(
       ),
     );
 
-// ============================================================
-// LOGIN SCREEN
-// ============================================================
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -364,11 +344,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
     final success = await context
         .read<AuthProvider>()
         .login(_emailCtrl.text.trim(), _passCtrl.text);
+
     if (!mounted) return;
+
     if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selamat, Anda berhasil login.'),
+          backgroundColor: AppTheme.success,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainNavigation()),
@@ -377,8 +369,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              context.read<AuthProvider>().errorMessage ?? 'Login gagal'),
+            context.read<AuthProvider>().errorMessage ?? 'Login gagal',
+          ),
           backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -387,6 +381,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+
     return _FlowerBackground(
       child: _LoginCard(
         child: Form(
@@ -419,15 +414,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Email & Password baris sejajar
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
-                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                      ),
                       decoration: _inputDeco(
                         label: 'Email',
                         prefix: Icons.email_outlined,
@@ -444,7 +440,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: TextFormField(
                       controller: _passCtrl,
                       obscureText: _obscure,
-                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                      ),
                       decoration: _inputDeco(
                         label: 'Password',
                         prefix: Icons.lock_outline,
@@ -468,7 +467,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -480,7 +478,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 0, vertical: 4),
+                      horizontal: 0,
+                      vertical: 4,
+                    ),
                   ),
                   child: const Text(
                     'Lupa Kata Sandi?',
@@ -493,19 +493,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 4),
               ElevatedButton(
-                onPressed: authProvider.status == AuthStatus.loading
-                    ? null
-                    : _login,
+                onPressed:
+                    authProvider.status == AuthStatus.loading ? null : _login,
                 style: _btnStyle,
                 child: authProvider.status == AuthStatus.loading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Text('Masuk'),
               ),
@@ -537,23 +537,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _sendEmail() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isLoading = true);
+
     try {
       await ApiService.forgotPassword(_emailCtrl.text.trim());
+
       if (!mounted) return;
+
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              OtpVerificationScreen(email: _emailCtrl.text.trim()),
+          builder: (_) => OtpVerificationScreen(email: _emailCtrl.text.trim()),
         ),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.error),
+          content: Text(e.toString()),
+          backgroundColor: AppTheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -600,7 +605,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 keyboardType: TextInputType.emailAddress,
                 style: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
                 decoration: _inputDeco(
-                    label: 'Email', prefix: Icons.email_outlined),
+                  label: 'Email',
+                  prefix: Icons.email_outlined,
+                ),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Email wajib diisi';
                   if (!v.contains('@')) return 'Email tidak valid';
@@ -616,7 +623,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Text('Kirim Kode Verifikasi'),
               ),
               const SizedBox(height: 8),
@@ -625,9 +635,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 child: const Text(
                   'Kembali ke Login',
                   style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12,
-                      color: Color(0xFFD4537E)),
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    color: Color(0xFFD4537E),
+                  ),
                 ),
               ),
             ],
@@ -638,11 +649,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 }
 
-// ============================================================
-// HALAMAN 2: Verifikasi OTP
-// ============================================================
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
+
   const OtpVerificationScreen({super.key, required this.email});
 
   @override
@@ -672,28 +681,37 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (_otpCode.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Masukkan 6 digit kode OTP!'),
-            backgroundColor: AppTheme.warning),
+          content: Text('Masukkan 6 digit kode OTP!'),
+          backgroundColor: AppTheme.warning,
+        ),
       );
       return;
     }
+
     setState(() => _isLoading = true);
+
     try {
       await ApiService.verifyOtp(widget.email, _otpCode);
+
       if (!mounted) return;
+
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ResetPasswordScreen(
-              email: widget.email, otpCode: _otpCode),
+            email: widget.email,
+            otpCode: _otpCode,
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.error),
+          content: Text(e.toString()),
+          backgroundColor: AppTheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -733,8 +751,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // OTP boxes
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(6, (i) {
@@ -759,13 +775,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       fillColor: const Color(0xFFFFF0F5),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFF0C4D4)),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFF0C4D4),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
-                            color: Color(0xFFD4537E), width: 1.5),
+                          color: Color(0xFFD4537E),
+                          width: 1.5,
+                        ),
                       ),
                       contentPadding: EdgeInsets.zero,
                     ),
@@ -780,7 +799,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 );
               }),
             ),
-
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _isLoading ? null : _verify,
@@ -790,7 +808,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
                   : const Text('Verifikasi'),
             ),
             const SizedBox(height: 8),
@@ -799,9 +820,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               child: const Text(
                 'Kirim ulang kode',
                 style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 12,
-                    color: Color(0xFFD4537E)),
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  color: Color(0xFFD4537E),
+                ),
               ),
             ),
           ],
@@ -811,14 +833,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 }
 
-// ============================================================
-// HALAMAN 3: Reset Password Baru
-// ============================================================
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
   final String otpCode;
-  const ResetPasswordScreen(
-      {super.key, required this.email, required this.otpCode});
+
+  const ResetPasswordScreen({
+    super.key,
+    required this.email,
+    required this.otpCode,
+  });
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -841,16 +864,25 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isLoading = true);
+
     try {
       await ApiService.resetPassword(
-          widget.email, widget.otpCode, _passCtrl.text);
+        widget.email,
+        widget.otpCode,
+        _passCtrl.text,
+      );
+
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Password berhasil direset! Silakan login.'),
-            backgroundColor: AppTheme.success),
+          content: Text('Password berhasil direset! Silakan login.'),
+          backgroundColor: AppTheme.success,
+        ),
       );
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -858,10 +890,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.error),
+          content: Text(e.toString()),
+          backgroundColor: AppTheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -954,7 +988,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Text('Simpan Password Baru'),
               ),
             ],

@@ -122,7 +122,7 @@ class _StockScreenState extends State<StockScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppTheme.warning.withOpacity(0.1),
+                      color: AppTheme.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -218,8 +218,9 @@ class _StockCard extends StatelessWidget {
         color: AppTheme.bgCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color:
-              item.isLowStock ? _statusColor.withOpacity(0.3) : AppTheme.border,
+          color: item.isLowStock
+              ? _statusColor.withValues(alpha: 0.3)
+              : AppTheme.border,
         ),
       ),
       child: Row(
@@ -228,7 +229,7 @@ class _StockCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.1),
+              color: _statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(Icons.local_florist, color: _statusColor, size: 24),
@@ -355,10 +356,10 @@ class _FilterChip extends StatelessWidget {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.08),
+          color: isSelected ? color : color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : color.withOpacity(0.2),
+            color: isSelected ? color : color.withValues(alpha: 0.2),
           ),
         ),
         child: Text(

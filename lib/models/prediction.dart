@@ -46,9 +46,8 @@ class DailyPrediction {
     return DailyPrediction(
       date: DateTime.parse(json['date']),
       predicted: (json['predicted'] as num).toDouble(),
-      actual: json['actual'] != null
-          ? (json['actual'] as num).toDouble()
-          : null,
+      actual:
+          json['actual'] != null ? (json['actual'] as num).toDouble() : null,
     );
   }
 }

@@ -50,9 +50,8 @@ class PredictionProvider extends ChangeNotifier {
     try {
       final response = await ApiService.getPredictions(period: period);
 
-      final List<dynamic> data = response is List
-          ? response
-          : (response['data'] as List? ?? []);
+      final List<dynamic> data =
+          response is List ? response : (response['data'] as List? ?? []);
 
       _predictions = data
           .map((e) => PredictionSummary.fromJson(e as Map<String, dynamic>))

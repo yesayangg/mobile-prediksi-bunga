@@ -1,4 +1,5 @@
 import 'package:flower_shop/models/flower_stock.dart';
+
 FlowerStock? test;
 
 class Transaction {
@@ -59,20 +60,20 @@ class Transaction {
   }
 
   Map<String, dynamic> toJson() => {
-    'invoice_number': invoiceNumber,
-    'items': items.map((e) => e.toJson()).toList(),
-    'total_amount': totalAmount,
-    'discount': discount,
-    'tax': tax,
-    'grand_total': grandTotal,
-    'amount_paid': amountPaid,
-    'change': change,
-    'payment_method': paymentMethod.name,
-    'note': note,
-    'cashier_id': cashierId,
-    'cashier_name': cashierName,
-    'created_at': createdAt.toIso8601String(),
-  };
+        'invoice_number': invoiceNumber,
+        'items': items.map((e) => e.toJson()).toList(),
+        'total_amount': totalAmount,
+        'discount': discount,
+        'tax': tax,
+        'grand_total': grandTotal,
+        'amount_paid': amountPaid,
+        'change': change,
+        'payment_method': paymentMethod.name,
+        'note': note,
+        'cashier_id': cashierId,
+        'cashier_name': cashierName,
+        'created_at': createdAt.toIso8601String(),
+      };
 }
 
 class TransactionItem {
@@ -101,12 +102,12 @@ class TransactionItem {
   }
 
   Map<String, dynamic> toJson() => {
-    'flower_id': flowerId,
-    'flower_name': flowerName,
-    'quantity': quantity,
-    'unit_price': unitPrice,
-    'subtotal': subtotal,
-  };
+        'flower_id': flowerId,
+        'flower_name': flowerName,
+        'quantity': quantity,
+        'unit_price': unitPrice,
+        'subtotal': subtotal,
+      };
 }
 
 enum PaymentMethod { cash, qris, transfer, debit }
