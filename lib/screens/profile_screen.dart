@@ -11,29 +11,41 @@ class ProfileScreen extends StatelessWidget {
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Keluar',
           style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Poppins',
-              fontSize: 16),
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Poppins',
+            fontSize: 16,
+          ),
         ),
         content: const Text(
           'Apakah kamu yakin ingin keluar dari akun ini?',
-          style: TextStyle(fontFamily: 'Poppins', fontSize: 13),
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal',
-                style: TextStyle(
-                    fontFamily: 'Poppins', color: AppTheme.textSecondary)),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Batal',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(ctx);
+              Navigator.pop(dialogContext);
+
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+
               await context.read<AuthProvider>().logout();
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
@@ -42,11 +54,14 @@ class ProfileScreen extends StatelessWidget {
                 );
               }
             },
-            child: const Text('Keluar',
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    color: AppTheme.error,
-                    fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Keluar',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: AppTheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],   // <-- penutup actions
       ),     // <-- penutup AlertDialog
@@ -66,43 +81,39 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 32),
-
-            // Avatar
             Container(
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.15),
+                color: AppTheme.primary.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.storefront_outlined,
-                  color: AppTheme.primary, size: 40),
+              child: const Icon(
+                Icons.storefront_outlined,
+                color: AppTheme.primary,
+                size: 40,
+              ),
             ),
             const SizedBox(height: 12),
-
-            // Nama
             Text(
               user?.name ?? 'Pengguna',
               style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                  fontFamily: 'Poppins'),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+                fontFamily: 'Poppins',
+              ),
             ),
             const SizedBox(height: 4),
-
-            // Role
             Text(
               user?.role.label ?? '',
               style: const TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Poppins'),
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+                fontFamily: 'Poppins',
+              ),
             ),
-
             const SizedBox(height: 36),
-
-            // Menu
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -120,16 +131,14 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-
             const Spacer(),
-
-            // Footer
             const Text(
               'Aplikasi Prediksi Penjualan Bunga',
               style: TextStyle(
-                  fontSize: 11,
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Poppins'),
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+                fontFamily: 'Poppins',
+              ),
             ),
             const SizedBox(height: 20),
           ],
@@ -169,14 +178,18 @@ class _MenuItem extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: labelColor ?? AppTheme.textPrimary,
-                    fontFamily: 'Poppins'),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: labelColor ?? AppTheme.textPrimary,
+                  fontFamily: 'Poppins',
+                ),
               ),
             ),
-            Icon(Icons.chevron_right,
-                color: AppTheme.textSecondary, size: 20),
+            const Icon(
+              Icons.chevron_right,
+              color: AppTheme.textSecondary,
+              size: 20,
+            ),
           ],
         ),
       ),

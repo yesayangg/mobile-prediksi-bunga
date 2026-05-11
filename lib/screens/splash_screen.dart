@@ -77,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: const Icon(
@@ -100,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
                 Text(
                   'Sistem Manajemen Penjualan',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 14,
                     fontFamily: 'Poppins',
                   ),
@@ -110,7 +110,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 32,
                   height: 32,
                   child: CircularProgressIndicator(
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     strokeWidth: 2,
                   ),
                 ),

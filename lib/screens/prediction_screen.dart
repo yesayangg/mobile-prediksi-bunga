@@ -58,12 +58,12 @@ class _PredictionScreenState extends State<PredictionScreen> {
                 onTap: () => pp.loadPredictions(period: p.$2),
                 child: Container(
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: sel
                         ? AppTheme.primary
-                        : AppTheme.primary.withOpacity(0.08),
+                        : AppTheme.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(p.$1,
@@ -82,9 +82,9 @@ class _PredictionScreenState extends State<PredictionScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.info.withOpacity(0.08),
+              color: AppTheme.info.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.info.withOpacity(0.2)),
+              border: Border.all(color: AppTheme.info.withValues(alpha: 0.2)),
             ),
             child: const Row(children: [
               Icon(Icons.info_outline, color: AppTheme.info, size: 18),
@@ -146,9 +146,8 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                        color: cc.withOpacity(0.1),
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
+                                        color: cc.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8)),
                                     child: Text('$pct% akurasi',
                                         style: TextStyle(
                                             color: cc,
@@ -188,24 +187,21 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
                                         color: AppTheme.bgLight,
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
+                                        borderRadius: BorderRadius.circular(8)),
                                     child: Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          const Icon(
-                                              Icons.lightbulb_outline,
+                                          const Icon(Icons.lightbulb_outline,
                                               size: 16,
                                               color: AppTheme.warning),
                                           const SizedBox(width: 6),
                                           Expanded(
-                                            child: Text(
-                                                pred.recommendation,
+                                            child: Text(pred.recommendation,
                                                 style: const TextStyle(
                                                     fontSize: 12,
-                                                    color: AppTheme
-                                                        .textSecondary,
+                                                    color:
+                                                        AppTheme.textSecondary,
                                                     fontFamily: 'Poppins')),
                                           ),
                                         ]),

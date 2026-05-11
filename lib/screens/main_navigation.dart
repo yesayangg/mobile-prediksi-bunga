@@ -9,7 +9,6 @@ import 'stock_screen.dart';
 import 'transaction_screen.dart';
 import 'prediction_screen.dart';
 import 'notification_screen.dart';
-import 'profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
