@@ -3,8 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  // TODO: Ganti dengan base URL backend kamu
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'http://10.0.2.2:8000/api'; 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
   static Future<String?> getToken() async {
@@ -28,7 +27,8 @@ class ApiService {
     };
   }
 
-  // AUTH
+  // ================= AUTH =================
+
   static Future<Map<String, dynamic>> login(
       String email, String password) async {
     final response = await http.post(
@@ -50,28 +50,16 @@ class ApiService {
     }
   }
 
-  // STOCK
+  // ================= STOCK (PRODUCT) =================
+
   static Future<Map<String, dynamic>> getStocks({
     String? category,
     String? search,
     bool? lowStockOnly,
   }) async {
-    final params = <String, String>{};
-    if (category != null) params['category'] = category;
-    if (search != null) params['search'] = search;
-    if (lowStockOnly == true) params['low_stock'] = '1';
-
-    final uri = Uri.parse('$baseUrl/stocks').replace(queryParameters: params);
-    final response = await http.get(uri, headers: await _headers());
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> updateStock(
-      int id, int quantity, String type) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/stocks/$id/adjust'),
+    final response = await http.get(
+      Uri.parse('$baseUrl/products'),
       headers: await _headers(),
-      body: jsonEncode({'quantity': quantity, 'type': type}),
     );
     return _handleResponse(response);
   }
@@ -79,14 +67,25 @@ class ApiService {
   static Future<Map<String, dynamic>> addNewFlower(
       Map<String, dynamic> data) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/stocks'),
+      Uri.parse('$baseUrl/products'),
       headers: await _headers(),
       body: jsonEncode(data),
     );
     return _handleResponse(response);
   }
 
-  // TRANSACTIONS
+  static Future<Map<String, dynamic>> updateStock(
+      int id, int quantity, String type) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/products/$id/add-stock'),
+      headers: await _headers(),
+      body: jsonEncode({'quantity': quantity}),
+    );
+    return _handleResponse(response);
+  }
+
+  // ================= TRANSACTIONS =================
+
   static Future<Map<String, dynamic>> createTransaction(
       Map<String, dynamic> data) async {
     final response = await http.post(
@@ -120,6 +119,8 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  // ================= DASHBOARD =================
+
   static Future<Map<String, dynamic>> getDashboardSummary() async {
     final response = await http.get(
       Uri.parse('$baseUrl/dashboard/summary'),
@@ -128,7 +129,8 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  // PREDICTIONS
+  // ================= PREDICTIONS =================
+
   static Future<dynamic> getPredictions({
     int? flowerId,
     String period = '7days',
@@ -147,40 +149,43 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  // NOTIFICATIONS
-  // FORGOT PASSWORD
-static Future<void> forgotPassword(String email) async {
-  final response = await http.post(
-    Uri.parse('$baseUrl/auth/forgot-password'),
-    headers: await _headers(),
-    body: jsonEncode({'email': email}),
-  );
-  _handleResponse(response);
-}
+  // ================= PASSWORD =================
 
-static Future<void> verifyOtp(String email, String otp) async {
-  final response = await http.post(
-    Uri.parse('$baseUrl/auth/verify-otp'),
-    headers: await _headers(),
-    body: jsonEncode({'email': email, 'otp': otp}),
-  );
-  _handleResponse(response);
-}
+  static Future<void> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/forgot-password'),
+      headers: await _headers(),
+      body: jsonEncode({'email': email}),
+    );
+    _handleResponse(response);
+  }
 
-static Future<void> resetPassword(
-    String email, String otp, String newPassword) async {
-  final response = await http.post(
-    Uri.parse('$baseUrl/auth/reset-password'),
-    headers: await _headers(),
-    body: jsonEncode({
-      'email': email,
-      'otp': otp,
-      'password': newPassword,
-      'password_confirmation': newPassword,
-    }),
-  );
-  _handleResponse(response);
-}
+  static Future<void> verifyOtp(String email, String otp) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verify-otp'),
+      headers: await _headers(),
+      body: jsonEncode({'email': email, 'otp': otp}),
+    );
+    _handleResponse(response);
+  }
+
+  static Future<void> resetPassword(
+      String email, String otp, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/reset-password'),
+      headers: await _headers(),
+      body: jsonEncode({
+        'email': email,
+        'otp': otp,
+        'password': newPassword,
+        'password_confirmation': newPassword,
+      }),
+    );
+    _handleResponse(response);
+  }
+
+  // ================= NOTIFICATIONS =================
+
   static Future<Map<String, dynamic>> getNotifications() async {
     final response = await http.get(
       Uri.parse('$baseUrl/notifications'),
@@ -195,6 +200,8 @@ static Future<void> resetPassword(
       headers: await _headers(),
     );
   }
+
+  // ================= RESPONSE HANDLER =================
 
   static Map<String, dynamic> _handleResponse(http.Response response) {
     final body = jsonDecode(response.body) as Map<String, dynamic>;

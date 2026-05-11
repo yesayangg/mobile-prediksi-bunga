@@ -230,7 +230,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
       children: [
         // Pilih bunga
         DropdownButtonFormField<FlowerStock>(
-          value: _selectedFlower,
+          initialValue: _selectedFlower,
           decoration: _inputDecoration('Pilih Bunga', Icons.local_florist),
           items: widget.existingStocks
               .map((f) => DropdownMenuItem(
@@ -395,7 +395,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
         ),
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
-          value: _unit,
+          initialValue: _unit,
           decoration: _inputDecoration('Satuan', Icons.straighten),
           items: _units
               .map((u) => DropdownMenuItem(
