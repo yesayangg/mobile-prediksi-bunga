@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -65,32 +66,258 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // ── AppBar ──────────────────────────────────────────────────────────────────
+
+  PreferredSizeWidget _buildAppBar() {
     final auth = context.watch<AuthProvider>();
-    final stock = context.watch<StockProvider>();
     final now = DateTime.now();
     final greeting = now.hour < 12
         ? 'Selamat Pagi'
         : now.hour < 17
             ? 'Selamat Siang'
             : 'Selamat Sore';
+    final days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+final months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+final dateStr = '${days[now.weekday % 7]}, ${now.day} ${months[now.month - 1]}';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
+final timeStr = DateFormat('HH:mm').format(now);
+
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(kToolbarHeight + 130),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFD64F7A),
+              Color(0xFFC9436E),
+              Color(0xFFB03060),
+            ],
+            stops: [0.0, 0.6, 1.0],
+          ),
+        ),
+        child: Stack(
           children: [
-            Text('🏠 Beranda 🌸'),
+            // Dekorasi lingkaran kanan atas
+            Positioned(
+              top: -40,
+              right: -40,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            // Dekorasi lingkaran kiri bawah
+            Positioned(
+              bottom: -25,
+              left: 30,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Baris 1: Logo + Notif
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Logo
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.25),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: CustomPaint(
+                                  size: const Size(28, 28),
+                                  painter: FlowerLogoPainter(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'FloraPos',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    letterSpacing: 0.2,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                                Text(
+                                  'Toko Bunga Digital',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white70,
+                                    letterSpacing: 0.4,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        // Tombol notifikasi
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.notifications_outlined,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                onPressed: () {},
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFD54F),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFFC9436E),
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Baris 2: Greeting + Avatar
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Halo, ${auth.user?.name ?? 'Pengguna'}! 👋',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$greeting, selamat datang kembali',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white70,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                          ],
+                        ),
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ProfileScreen()),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.35),
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.person_outline,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Baris 3: Pill tanggal & waktu
+                    Row(
+                      children: [
+                        _AppBarPill(
+                          icon: Icons.calendar_today_outlined,
+                          label: dateStr,
+                        ),
+                        const SizedBox(width: 8),
+                        _AppBarPill(
+                          icon: Icons.access_time_outlined,
+                          label: timeStr,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
-        ],
       ),
+    );
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final stock = context.watch<StockProvider>();
+
+    return Scaffold(
+      appBar: _buildAppBar(),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -100,63 +327,15 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              // Greeting Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Halo, ${auth.user?.name ?? 'Pengguna'}!',
-                          style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                              fontFamily: 'Poppins'),
-                        ),
-                        Row(
-                          children: [
-                            Text(
-                              '$greeting, selamat datang kembali ',
-                              style: const TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 13,
-                                  fontFamily: 'Poppins'),
-                            ),
-                            const Text('👋', style: TextStyle(fontSize: 13)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ProfileScreen()),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(24),
-                    child: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppTheme.primary.withOpacity(0.1),
-                      child: const Icon(Icons.person_outline,
-                          color: AppTheme.primary),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
               // Stats
-              const Text('Ringkasan Hari Ini',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                      fontFamily: 'Poppins')),
+              const Text(
+                'Ringkasan Hari Ini',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                    fontFamily: 'Poppins'),
+              ),
               const SizedBox(height: 12),
 
               if (_loadingSummary)
@@ -182,8 +361,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: _StatCard(
                         label: 'Transaksi',
-                        value:
-                            _summary?['today_transactions']?.toString() ?? '0',
+                        value: _summary?['today_transactions']?.toString() ??
+                            '0',
                         icon: Icons.receipt_long,
                         color: const Color(0xFF3F51B5),
                         bgColor: const Color(0xFFE8EAF6),
@@ -207,7 +386,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: _StatCard(
                         label: 'Akurasi Prediksi',
-                        value: '${_summary?['prediction_accuracy'] ?? 85}%',
+                        value:
+                            '${_summary?['prediction_accuracy'] ?? 85}%',
                         icon: Icons.auto_graph,
                         color: const Color(0xFF9C27B0),
                         bgColor: const Color(0xFFF3E5F5),
@@ -225,8 +405,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.warning.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: AppTheme.warning.withOpacity(0.3)),
+                    border: Border.all(
+                        color: AppTheme.warning.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
@@ -247,24 +427,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
 
-              // ── Prediksi Singkat ──
+              // Prediksi Singkat
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Prediksi Singkat',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                          fontFamily: 'Poppins')),
+                  const Text(
+                    'Prediksi Singkat',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                        fontFamily: 'Poppins'),
+                  ),
                   TextButton(
                     onPressed: widget.onNavigateToPrediksi,
-                    child: const Text('Lihat Semua',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.primary,
-                            fontFamily: 'Poppins')),
+                    child: const Text(
+                      'Lihat Semua',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.primary,
+                          fontFamily: 'Poppins'),
+                    ),
                   ),
                 ],
               ),
@@ -292,10 +476,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         if (!isLast)
                           Divider(
-                              height: 1,
-                              indent: 16,
-                              endIndent: 16,
-                              color: AppTheme.border),
+                            height: 1,
+                            indent: 16,
+                            endIndent: 16,
+                            color: AppTheme.border,
+                          ),
                       ],
                     );
                   }).toList(),
@@ -308,6 +493,102 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+// ── AppBar Pill ────────────────────────────────────────────────────────────
+
+class _AppBarPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _AppBarPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 13),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Poppins',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Flower Logo Painter ────────────────────────────────────────────────────
+
+class FlowerLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    final petalPaintLight = Paint()
+      ..color = Colors.white.withOpacity(0.22)
+      ..style = PaintingStyle.fill;
+
+    final petalPaintBright = Paint()
+      ..color = Colors.white.withOpacity(0.32)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 8; i++) {
+      final angle = i * pi / 4;
+      final paint = i.isEven ? petalPaintLight : petalPaintBright;
+
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(angle);
+
+      final petalRect = Rect.fromCenter(
+        center: Offset(0, -cy * 0.55),
+        width: size.width * 0.28,
+        height: size.height * 0.48,
+      );
+      canvas.drawOval(petalRect, paint);
+      canvas.restore();
+    }
+
+    // Lingkaran putih luar
+    canvas.drawCircle(
+      Offset(cx, cy),
+      size.width * 0.175,
+      Paint()..color = Colors.white,
+    );
+
+    // Lingkaran pink tengah
+    canvas.drawCircle(
+      Offset(cx, cy),
+      size.width * 0.107,
+      Paint()..color = const Color(0xFFFFB7CB),
+    );
+
+    // Titik putih paling tengah
+    canvas.drawCircle(
+      Offset(cx, cy),
+      size.width * 0.058,
+      Paint()..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Stat Card ──────────────────────────────────────────────────────────────
@@ -420,7 +701,8 @@ class _PredictionRow extends StatelessWidget {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: statusColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(20),

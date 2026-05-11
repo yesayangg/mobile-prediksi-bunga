@@ -9,9 +9,11 @@ import 'providers/notification_provider.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null);
 
   // Orientation lock hanya untuk mobile, tidak untuk web
   if (!kIsWeb) {
