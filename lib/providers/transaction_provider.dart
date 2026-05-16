@@ -37,6 +37,7 @@ class TransactionProvider extends ChangeNotifier {
 
   void addToCart(FlowerStock flower) {
     final existing = _cart.indexWhere((c) => c.flower.id == flower.id);
+
     if (existing != -1) {
       if (_cart[existing].quantity < flower.stock) {
         _cart[existing].quantity++;
@@ -46,6 +47,7 @@ class TransactionProvider extends ChangeNotifier {
         _cart.add(CartItem(flower: flower));
       }
     }
+
     notifyListeners();
   }
 
@@ -56,12 +58,15 @@ class TransactionProvider extends ChangeNotifier {
 
   void updateQuantity(int flowerId, int quantity) {
     final index = _cart.indexWhere((c) => c.flower.id == flowerId);
+
     if (index != -1) {
       if (quantity <= 0) {
         _cart.removeAt(index);
       } else {
-        _cart[index].quantity = quantity;
+        final maxStock = _cart[index].flower.stock;
+        _cart[index].quantity = quantity > maxStock ? maxStock : quantity;
       }
+
       notifyListeners();
     }
   }
@@ -75,6 +80,11 @@ class TransactionProvider extends ChangeNotifier {
 
   void setPaymentMethod(PaymentMethod method) {
     _paymentMethod = method;
+
+    if (method != PaymentMethod.cash) {
+      _amountPaid = totalAmount;
+    }
+
     notifyListeners();
   }
 
@@ -87,8 +97,19 @@ class TransactionProvider extends ChangeNotifier {
     _note = note;
   }
 
-  Future<Transaction?> submitTransaction() async {
-    if (_cart.isEmpty) return null;
+  Future<bool> submitTransaction() async {
+    if (_cart.isEmpty) {
+      _errorMessage = 'Keranjang masih kosong.';
+      notifyListeners();
+      return false;
+    }
+
+    if (_paymentMethod == PaymentMethod.cash && _amountPaid < totalAmount) {
+      _errorMessage = 'Jumlah dibayar kurang dari total transaksi.';
+      notifyListeners();
+      return false;
+    }
+
     _isSubmitting = true;
     _errorMessage = null;
     notifyListeners();
@@ -97,6 +118,7 @@ class TransactionProvider extends ChangeNotifier {
       final data = {
         'items': _cart
             .map((c) => {
+                  'product_id': c.flower.id,
                   'flower_id': c.flower.id,
                   'flower_name': c.flower.name,
                   'quantity': c.quantity,
@@ -106,20 +128,34 @@ class TransactionProvider extends ChangeNotifier {
             .toList(),
         'total_amount': totalAmount,
         'grand_total': totalAmount,
-        'amount_paid': _amountPaid,
-        'change': change,
+        'amount_paid':
+            _paymentMethod == PaymentMethod.cash ? _amountPaid : totalAmount,
+        'change': _paymentMethod == PaymentMethod.cash ? change : 0,
         'payment_method': _paymentMethod.name,
         'note': _note,
       };
 
       final response = await ApiService.createTransaction(data);
-      final transaction = Transaction.fromJson(response['data']);
-      _transactions.insert(0, transaction);
+
+      try {
+        final responseData = response['data'];
+        if (responseData is Map<String, dynamic>) {
+          final transactionData = responseData['transaction'] ?? responseData;
+
+          if (transactionData is Map<String, dynamic>) {
+            final transaction = Transaction.fromJson(transactionData);
+            _transactions.insert(0, transaction);
+          }
+        }
+      } catch (_) {
+        // Backend sudah sukses, jadi parsing history tidak boleh menggagalkan transaksi.
+      }
+
       clearCart();
-      return transaction;
+      return true;
     } catch (e) {
       _errorMessage = e.toString();
-      return null;
+      return false;
     } finally {
       _isSubmitting = false;
       notifyListeners();
@@ -128,12 +164,15 @@ class TransactionProvider extends ChangeNotifier {
 
   Future<void> loadTransactions({DateTime? start, DateTime? end}) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
+
     try {
       final response = await ApiService.getTransactions(
         startDate: start,
         endDate: end,
       );
+
       _transactions = (response['data'] as List)
           .map((e) => Transaction.fromJson(e))
           .toList();
