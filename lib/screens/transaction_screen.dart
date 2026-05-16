@@ -7,6 +7,7 @@ import '../models/flower_stock.dart';
 import '../models/transaction.dart';
 import '../theme/app_theme.dart';
 
+
 class TransactionScreen extends StatefulWidget {
   const TransactionScreen({super.key});
 
@@ -540,23 +541,54 @@ class _CheckoutSheet extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: txProvider.isSubmitting
-                    ? null
-                    : () async {
-                        final tx = await context
-                            .read<TransactionProvider>()
-                            .submitTransaction();
-                        if (!context.mounted) return;
-                        Navigator.pop(context);
-                        if (tx != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'Transaksi ${tx.invoiceNumber} berhasil!'),
-                              backgroundColor: AppTheme.success,
-                            ),
-                          );
-                        }
-                      },
+    ? null
+    : () async {
+        final messenger = ScaffoldMessenger.of(context);
+        final navigator = Navigator.of(context);
+        final transactionProvider = context.read<TransactionProvider>();
+        final stockProvider = context.read<StockProvider>();
+
+        if (transactionProvider.paymentMethod == PaymentMethod.cash &&
+            transactionProvider.amountPaid < transactionProvider.totalAmount) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Jumlah dibayar masih kurang dari total transaksi.'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+          return;
+        }
+
+        final success = await transactionProvider.submitTransaction();
+
+        if (!context.mounted) return;
+
+        if (success) {
+          await stockProvider.loadStocks(refresh: true);
+
+          if (navigator.canPop()) {
+            navigator.pop();
+          }
+
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Pembayaran berhasil disimpan.'),
+              backgroundColor: AppTheme.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                transactionProvider.errorMessage ??
+                    'Pembayaran gagal diproses.',
+              ),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+      },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                 ),
