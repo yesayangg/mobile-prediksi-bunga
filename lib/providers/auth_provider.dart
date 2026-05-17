@@ -21,50 +21,20 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    try {
-      final response = await ApiService.login(email, password);
-      final data = response['data'] as Map<String, dynamic>?;
-
-      if (data == null || data['user'] == null) {
-        throw ApiException('Response login tidak valid', 500);
-      }
-
-      final token = data['token']?.toString() ?? '';
-      final userJson = Map<String, dynamic>.from(data['user']);
-
-      userJson['token'] = token;
-
-      final loggedInUser = User.fromJson(userJson);
-
-      if (!loggedInUser.isCashier) {
-        await ApiService.clearToken();
-
-        _user = null;
-        _status = AuthStatus.error;
-        _errorMessage =
-            'Akun admin hanya dapat digunakan melalui website. Silakan login sebagai kasir untuk menggunakan aplikasi mobile.';
-        notifyListeners();
-
-        return false;
-      }
-
-      await ApiService.saveToken(token);
-
-      _user = loggedInUser;
-      _status = AuthStatus.authenticated;
-      notifyListeners();
-
-      return true;
-    } catch (e) {
-      await ApiService.clearToken();
-
-      _user = null;
-      _status = AuthStatus.error;
-      _errorMessage = e.toString();
-      notifyListeners();
-
-      return false;
-    }
+    // BYPASS LOGIN - hapus kalau backend sudah siap
+    await Future.delayed(const Duration(milliseconds: 500));
+    _user = User.fromJson({
+      'id': 1,
+      'name': 'yesa',
+      'email': email,
+      'role': 'owner',
+      'token': 'dummy_token',
+      'avatar_url': null,
+    });
+    _status = AuthStatus.authenticated;
+    notifyListeners();
+    return true;
+    // END BYPASS
   }
 
   Future<void> logout() async {

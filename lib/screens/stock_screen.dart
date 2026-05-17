@@ -30,16 +30,61 @@ class _StockScreenState extends State<StockScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFfbaecb), Color(0xFFf4859e), Color(0xFFe86a8a)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+            ),
+          ),
+        ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
         title: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('📦 Stok Bunga 🌹'),
+            _FlowerDecorLeft(),
+            SizedBox(width: 8),
+            Text(
+              'Stok Bunga',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+                fontSize: 17,
+                letterSpacing: 0.4,
+                color: Colors.white,
+              ),
+            ),
           ],
         ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => stockProvider.loadStocks(refresh: true),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                onPressed: () => stockProvider.loadStocks(refresh: true),
+              ),
+            ),
           ),
         ],
       ),
@@ -180,6 +225,78 @@ class _StockScreenState extends State<StockScreen> {
     );
   }
 }
+
+// ── Bunga dekorasi kiri (CustomPaint) ────────────────────────────────────────
+
+class _FlowerDecorLeft extends StatelessWidget {
+  const _FlowerDecorLeft();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: CustomPaint(painter: _FlowerPainter()),
+    );
+  }
+}
+
+class _FlowerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Kelopak
+    final petalPaint1 = Paint()
+      ..color = Colors.white.withOpacity(0.75)
+      ..style = PaintingStyle.fill;
+    final petalPaint2 = Paint()
+      ..color = const Color(0xFFffd0e8).withOpacity(0.85)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 9; i++) {
+      final angle = (i * 40) * 3.14159 / 180;
+      final paint = i.isEven ? petalPaint1 : petalPaint2;
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(angle);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: const Offset(0, -9),
+          width: 5.5,
+          height: 10,
+        ),
+        paint,
+      );
+      canvas.restore();
+    }
+
+    // Putik luar
+    canvas.drawCircle(
+      Offset(cx, cy),
+      5.5,
+      Paint()..color = const Color(0xFFFFFBD0).withOpacity(0.9),
+    );
+    // Putik dalam
+    canvas.drawCircle(
+      Offset(cx, cy),
+      3.5,
+      Paint()..color = const Color(0xFFF0C840).withOpacity(0.95),
+    );
+    // Titik serbuk sari
+    final dotPaint = Paint()
+      ..color = const Color(0xFFC89010).withOpacity(0.7);
+    canvas.drawCircle(Offset(cx - 1.2, cy - 1.2), 0.9, dotPaint);
+    canvas.drawCircle(Offset(cx + 1.5, cy - 0.5), 0.8, dotPaint);
+    canvas.drawCircle(Offset(cx, cy + 1.5), 0.85, dotPaint);
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+// ── Widget lain tidak diubah ─────────────────────────────────────────────────
 
 class _StockCard extends StatelessWidget {
   final FlowerStock item;
