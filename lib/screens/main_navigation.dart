@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/stock_provider.dart';
 import '../theme/app_theme.dart';
+
 import 'home_screen.dart';
 import 'stock_screen.dart';
 import 'transaction_screen.dart';
@@ -18,17 +20,35 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation> {
+  // Menyimpan index menu yang sedang aktif.
+  //
+  // Urutan index menu:
+  // 0 = Beranda
+  // 1 = Stok
+  // 2 = Kasir
+  // 3 = Prediksi
+  // 4 = Notifikasi
   int _currentIndex = 0;
 
-  void _goToPrediksi(bool isOwner) {
-    if (!isOwner) return;
-    // index Prediksi = 3 (Beranda=0, Stok=1, Kasir=2, Prediksi=3, Notif=4)
-    setState(() => _currentIndex = 3);
+  // Fungsi ini dipanggil dari halaman Beranda ketika user menekan
+  // tombol/link "Lihat Semua" pada bagian prediksi singkat.
+  //
+  // Prediksi sekarang dibuat bisa diakses dari mobile,
+  // jadi tidak dibatasi lagi hanya untuk owner/admin.
+  void _goToPrediksi() {
+    setState(() {
+      _currentIndex = 3;
+    });
   }
 
   @override
   void initState() {
     super.initState();
+
+    // Memuat data awal setelah widget pertama kali selesai dirender.
+    //
+    // addPostFrameCallback dipakai agar context aman digunakan
+    // untuk memanggil Provider setelah proses build awal selesai.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<StockProvider>().loadStocks();
       context.read<NotificationProvider>().loadNotifications();
@@ -37,23 +57,37 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final notifProvider = context.watch<NotificationProvider>();
-    final isOwner = auth.isOwner;
+    // AuthProvider tetap dibaca agar state login user tetap tersedia.
+    // Saat ini tidak dipakai untuk menyembunyikan menu Prediksi,
+    // karena menu Prediksi memang ingin ditampilkan di mobile.
+    context.watch<AuthProvider>();
 
+    // Provider notifikasi dipakai untuk menampilkan badge pada menu Stok
+    // dan menu Notifikasi.
+    final notifProvider = context.watch<NotificationProvider>();
+
+    // Daftar halaman utama aplikasi.
+    //
+    // Jumlah screen harus sama dengan jumlah item BottomNavigationBar.
+    // Kalau urutannya berubah, index di _currentIndex juga harus disesuaikan.
     final screens = [
-      HomeScreen(onNavigateToPrediksi: () => _goToPrediksi(isOwner)),
+      HomeScreen(onNavigateToPrediksi: _goToPrediksi),
       const StockScreen(),
       const TransactionScreen(),
-      if (isOwner) const PredictionScreen(),
+      const PredictionScreen(),
       const NotificationScreen(),
     ];
 
     return Scaffold(
+      // IndexedStack menjaga state tiap halaman tetap hidup.
+      // Contoh: ketika pindah dari Stok ke Kasir lalu kembali ke Stok,
+      // halaman Stok tidak dibuat ulang dari nol.
       body: IndexedStack(
         index: _currentIndex,
         children: screens,
       ),
+
+      // Bottom navigation utama aplikasi mobile.
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           boxShadow: [
@@ -66,18 +100,30 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (i) => setState(() => _currentIndex = i),
+
+          // Saat user menekan menu bawah, update index halaman aktif.
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+
+          // Urutan menu:
+          // Beranda | Stok | Kasir | Prediksi | Notifikasi
           items: [
             const BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
               label: 'Beranda',
             ),
+
             BottomNavigationBarItem(
               icon: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   const Icon(Icons.inventory_2_outlined),
+
+                  // Tanda kecil pada menu Stok jika ada notifikasi stok rendah.
                   if (notifProvider.lowStockNotifications.isNotEmpty)
                     Positioned(
                       right: -4,
@@ -96,22 +142,28 @@ class _MainNavigationState extends State<MainNavigation> {
               activeIcon: const Icon(Icons.inventory_2),
               label: 'Stok',
             ),
+
             const BottomNavigationBarItem(
               icon: Icon(Icons.point_of_sale_outlined),
               activeIcon: Icon(Icons.point_of_sale),
               label: 'Kasir',
             ),
-            if (isOwner)
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.insights_outlined),
-                activeIcon: Icon(Icons.insights),
-                label: 'Prediksi',
-              ),
+
+            // Menu Prediksi ditampilkan untuk mobile.
+            // Posisi: setelah Kasir, sebelum Notifikasi.
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.insights_outlined),
+              activeIcon: Icon(Icons.insights),
+              label: 'Prediksi',
+            ),
+
             BottomNavigationBarItem(
               icon: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   const Icon(Icons.notifications_outlined),
+
+                  // Badge jumlah notifikasi belum dibaca.
                   if (notifProvider.unreadCount > 0)
                     Positioned(
                       right: -4,
