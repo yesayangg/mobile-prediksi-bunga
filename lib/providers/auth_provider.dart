@@ -21,31 +21,67 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    // BYPASS LOGIN - hapus kalau backend sudah siap
-    await Future.delayed(const Duration(milliseconds: 500));
-    _user = User.fromJson({
-      'id': 1,
-      'name': 'yesa',
-      'email': email,
-      'role': 'owner',
-      'token': 'dummy_token',
-      'avatar_url': null,
-    });
-    _status = AuthStatus.authenticated;
-    notifyListeners();
-    return true;
-    // END BYPASS
+    try {
+      final response = await ApiService.login(email, password);
+
+      final success = response['success'] == true;
+      final data = response['data'];
+
+      if (!success || data == null || data is! Map<String, dynamic>) {
+        _status = AuthStatus.unauthenticated;
+        _errorMessage = response['message']?.toString() ?? 'Login gagal';
+        notifyListeners();
+        return false;
+      }
+
+      final token = data['token'];
+      final userData = data['user'];
+
+      if (token == null || userData == null || userData is! Map<String, dynamic>) {
+        _status = AuthStatus.unauthenticated;
+        _errorMessage = 'Response login tidak valid';
+        notifyListeners();
+        return false;
+      }
+
+      final userJson = Map<String, dynamic>.from(userData);
+      userJson['token'] = token;
+
+      _user = User.fromJson(userJson);
+      _status = AuthStatus.authenticated;
+      _errorMessage = null;
+      notifyListeners();
+
+      return true;
+    } catch (e) {
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+
+      final message = e.toString();
+
+      if (message.contains('401')) {
+        _errorMessage = 'Email atau password salah';
+      } else if (message.contains('403')) {
+        _errorMessage = 'Akun ini tidak diizinkan login di aplikasi mobile';
+      } else {
+        _errorMessage = message.replaceFirst('Exception: ', '');
+      }
+
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> logout() async {
     try {
       await ApiService.logout();
     } catch (_) {
-      // Tetap lanjut logout meski backend error
       await ApiService.clearToken();
     }
+
     _user = null;
     _status = AuthStatus.unauthenticated;
+    _errorMessage = null;
     notifyListeners();
   }
 
@@ -55,6 +91,7 @@ class AuthProvider extends ChangeNotifier {
     if (token != null) {
       _status = AuthStatus.authenticated;
     } else {
+      _user = null;
       _status = AuthStatus.unauthenticated;
     }
 
