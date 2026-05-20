@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import 'package:intl/intl.dart';
 import 'add_stock_sheet.dart';
 
+
 class StockScreen extends StatefulWidget {
   const StockScreen({super.key});
 
@@ -104,7 +105,7 @@ class _StockScreenState extends State<StockScreen> {
             context: context,
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
-            builder: (_) => AddStockSheet(
+            builder: (context) => AddStockSheet(
               existingStocks: stockProvider.stocks,
             ),
           );
@@ -235,8 +236,6 @@ class _StockScreenState extends State<StockScreen> {
   }
 }
 
-// ── Bunga dekorasi kiri (CustomPaint) ────────────────────────────────────────
-
 class _FlowerDecorLeft extends StatelessWidget {
   const _FlowerDecorLeft();
 
@@ -256,7 +255,6 @@ class _FlowerPainter extends CustomPainter {
     final cx = size.width / 2;
     final cy = size.height / 2;
 
-    // Kelopak
     final petalPaint1 = Paint()
       ..color = Colors.white.withOpacity(0.75)
       ..style = PaintingStyle.fill;
@@ -281,19 +279,16 @@ class _FlowerPainter extends CustomPainter {
       canvas.restore();
     }
 
-    // Putik luar
     canvas.drawCircle(
       Offset(cx, cy),
       5.5,
       Paint()..color = const Color(0xFFFFFBD0).withOpacity(0.9),
     );
-    // Putik dalam
     canvas.drawCircle(
       Offset(cx, cy),
       3.5,
       Paint()..color = const Color(0xFFF0C840).withOpacity(0.95),
     );
-    // Titik serbuk sari
     final dotPaint = Paint()
       ..color = const Color(0xFFC89010).withOpacity(0.7);
     canvas.drawCircle(Offset(cx - 1.2, cy - 1.2), 0.9, dotPaint);
@@ -304,8 +299,6 @@ class _FlowerPainter extends CustomPainter {
   @override
   bool shouldRepaint(_) => false;
 }
-
-// ── Widget lain tidak diubah ─────────────────────────────────────────────────
 
 class _StockCard extends StatelessWidget {
   final FlowerStock item;

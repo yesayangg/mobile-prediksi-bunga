@@ -6,7 +6,45 @@ import '../providers/stock_provider.dart';
 import '../models/flower_stock.dart';
 import '../models/transaction.dart';
 import '../theme/app_theme.dart';
+import 'transaction_history.dart';
+import '../providers/notification_provider.dart';
+import '../widgets/notification_popup.dart';
 
+String _getFlowerEmoji(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('mawar')) return '🌹';
+  if (n.contains('tulip')) return '🌷';
+  if (n.contains('matahari')) return '🌻';
+  if (n.contains('krisan')) return '🌼';
+  if (n.contains('anggrek')) return '🌸';
+  if (n.contains('melati')) return '🤍';
+  if (n.contains('lily') || n.contains('lili')) return '💐';
+  return '🌺';
+}
+
+Color _getFlowerBgColor(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('mawar')) return const Color(0xFFFFF0F5);
+  if (n.contains('tulip')) return const Color(0xFFF5F0FF);
+  if (n.contains('matahari')) return const Color(0xFFFFFBF0);
+  if (n.contains('krisan')) return const Color(0xFFF0FFF5);
+  if (n.contains('anggrek')) return const Color(0xFFFFF0FA);
+  if (n.contains('melati')) return const Color(0xFFFFFFF0);
+  if (n.contains('lily') || n.contains('lili')) return const Color(0xFFF0F5FF);
+  return const Color(0xFFFFF0F8);
+}
+
+Color _getFlowerIconBgColor(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('mawar')) return const Color(0xFFFFD6E7);
+  if (n.contains('tulip')) return const Color(0xFFE8D6FF);
+  if (n.contains('matahari')) return const Color(0xFFFFF0B3);
+  if (n.contains('krisan')) return const Color(0xFFD6FFE8);
+  if (n.contains('anggrek')) return const Color(0xFFFFD6F5);
+  if (n.contains('melati')) return const Color(0xFFFFFDD6);
+  if (n.contains('lily') || n.contains('lili')) return const Color(0xFFD6E8FF);
+  return const Color(0xFFFFD6EE);
+}
 
 class TransactionScreen extends StatefulWidget {
   const TransactionScreen({super.key});
@@ -40,7 +78,7 @@ class _TransactionScreenState extends State<TransactionScreen>
         title: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🛒 Kasir 🌺'),
+            Text('Kasir'),
           ],
         ),
         bottom: TabBar(
@@ -58,7 +96,7 @@ class _TransactionScreenState extends State<TransactionScreen>
         controller: _tabController,
         children: [
           _NewTransactionTab(currencyFmt: _currencyFmt),
-          _HistoryTab(currencyFmt: _currencyFmt),
+          TransactionHistoryTab(currencyFmt: _currencyFmt),
         ],
       ),
     );
@@ -90,7 +128,7 @@ class _NewTransactionTabState extends State<_NewTransactionTab> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ChangeNotifierProvider.value(
+      builder: (context) => ChangeNotifierProvider.value(
         value: txProvider,
         child: _CheckoutSheet(
           currencyFmt: widget.currencyFmt,
@@ -126,7 +164,7 @@ class _NewTransactionTabState extends State<_NewTransactionTab> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    childAspectRatio: 1.5,
+                    childAspectRatio: 0.85,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
@@ -173,7 +211,7 @@ class _NewTransactionTabState extends State<_NewTransactionTab> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '${txProvider.cartItemCount} item',
+                        '${txProvider.cartItemCount} item dipilih',
                         style: const TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 12,
@@ -183,7 +221,7 @@ class _NewTransactionTabState extends State<_NewTransactionTab> {
                       Text(
                         widget.currencyFmt.format(txProvider.totalAmount),
                         style: const TextStyle(
-                          color: AppTheme.textPrimary,
+                          color: AppTheme.primary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           fontFamily: 'Poppins',
@@ -228,111 +266,169 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outOfStock = flower.isOutOfStock;
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: outOfStock
-            ? AppTheme.bgLight
-            : inCartQty > 0
-                ? AppTheme.primary.withValues(alpha: 0.05)
-                : AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: inCartQty > 0
-              ? AppTheme.primary.withValues(alpha: 0.3)
-              : AppTheme.border,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final bgColor = outOfStock
+        ? AppTheme.bgLight
+        : inCartQty > 0
+            ? AppTheme.primary.withValues(alpha: 0.05)
+            : _getFlowerBgColor(flower.name);
+    final iconBgColor =
+        outOfStock ? AppTheme.border : _getFlowerIconBgColor(flower.name);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.local_florist,
-                size: 18,
-                color: outOfStock ? AppTheme.textHint : AppTheme.primary,
+          Container(
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: inCartQty > 0
+                    ? AppTheme.primary.withValues(alpha: 0.3)
+                    : AppTheme.border,
               ),
-              const Spacer(),
-              if (outOfStock)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: AppTheme.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Habis',
-                    style: TextStyle(
-                      color: AppTheme.error,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Expanded(
+          Positioned(
+            top: -6,
+            right: -6,
             child: Text(
-              flower.name,
+              _getFlowerEmoji(flower.name),
               style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: outOfStock ? AppTheme.textHint : AppTheme.textPrimary,
-                fontFamily: 'Poppins',
+                fontSize: 52,
+                color:
+                    Colors.black.withValues(alpha: outOfStock ? 0.04 : 0.07),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Text(
-            price,
-            style: const TextStyle(
-              color: AppTheme.primary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Poppins',
-            ),
-          ),
-          const SizedBox(height: 6),
-          if (inCartQty == 0)
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: outOfStock ? null : onAdd,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  minimumSize: Size.zero,
-                  side: BorderSide(
-                    color: outOfStock ? AppTheme.border : AppTheme.primary,
-                  ),
-                ),
-                child: const Text('+ Tambah', style: TextStyle(fontSize: 11)),
-              ),
-            )
-          else
-            Row(
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _QtyBtn(icon: Icons.remove, onTap: onRemove),
-                Expanded(
-                  child: Text(
-                    '$inCartQty',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                      fontFamily: 'Poppins',
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: iconBgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          _getFlowerEmoji(flower.name),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
                     ),
+                    const Spacer(),
+                    if (outOfStock)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Habis',
+                          style: TextStyle(
+                            color: AppTheme.error,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        flower.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: outOfStock
+                              ? AppTheme.textHint
+                              : AppTheme.textPrimary,
+                          fontFamily: 'Poppins',
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Stok: ${flower.stock}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: outOfStock
+                              ? AppTheme.error
+                              : AppTheme.textSecondary,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                _QtyBtn(
-                  icon: Icons.add,
-                  onTap: inCartQty < flower.stock ? onAdd : null,
+                Text(
+                  price,
+                  style: TextStyle(
+                    color: outOfStock ? AppTheme.textHint : AppTheme.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Poppins',
+                  ),
                 ),
+                const SizedBox(height: 6),
+                if (inCartQty == 0)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: outOfStock ? null : onAdd,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        minimumSize: Size.zero,
+                        backgroundColor: outOfStock
+                            ? Colors.transparent
+                            : Colors.white.withValues(alpha: 0.6),
+                        side: BorderSide(
+                          color:
+                              outOfStock ? AppTheme.border : AppTheme.primary,
+                        ),
+                      ),
+                      child: Text(
+                        outOfStock ? 'Habis' : '+ Tambah',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      _QtyBtn(icon: Icons.remove, onTap: onRemove),
+                      Expanded(
+                        child: Text(
+                          '$inCartQty',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ),
+                      _QtyBtn(
+                        icon: Icons.add,
+                        onTap: inCartQty < flower.stock ? onAdd : null,
+                      ),
+                    ],
+                  ),
               ],
             ),
+          ),
         ],
       ),
     );
@@ -541,54 +637,63 @@ class _CheckoutSheet extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: txProvider.isSubmitting
-    ? null
-    : () async {
-        final messenger = ScaffoldMessenger.of(context);
-        final navigator = Navigator.of(context);
-        final transactionProvider = context.read<TransactionProvider>();
-        final stockProvider = context.read<StockProvider>();
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(context);
+                        final transactionProvider =
+                            context.read<TransactionProvider>();
+                        final stockProvider = context.read<StockProvider>();
+                        final notifProvider =
+                            context.read<NotificationProvider>();
 
-        if (transactionProvider.paymentMethod == PaymentMethod.cash &&
-            transactionProvider.amountPaid < transactionProvider.totalAmount) {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Jumlah dibayar masih kurang dari total transaksi.'),
-              backgroundColor: AppTheme.error,
-            ),
-          );
-          return;
-        }
+                        if (transactionProvider.paymentMethod ==
+    PaymentMethod.cash &&
+    transactionProvider.amountPaid < transactionProvider.totalAmount) {
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Jumlah dibayar masih kurang dari total transaksi.'),
+                              backgroundColor: AppTheme.error,
+                            ),
+                          );
+                          return;
+                        }
 
-        final success = await transactionProvider.submitTransaction();
+                        final success =
+                            await transactionProvider.submitTransaction();
 
-        if (!context.mounted) return;
+                        if (!context.mounted) return;
 
-        if (success) {
-          await stockProvider.loadStocks(refresh: true);
+                        if (success) {
+                          await stockProvider.loadStocks(refresh: true);
 
-          if (navigator.canPop()) {
-            navigator.pop();
-          }
+                          await notifProvider.addNotification(
+                            title: 'Transaksi Berhasil',
+                            message: 'Pembayaran berhasil disimpan! 🛍️',
+                            type: NotificationType.transaction,
+                          );
 
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Pembayaran berhasil disimpan.'),
-              backgroundColor: AppTheme.success,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        } else {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                transactionProvider.errorMessage ??
-                    'Pembayaran gagal diproses.',
-              ),
-              backgroundColor: AppTheme.error,
-            ),
-          );
-        }
-      },
+                          NotificationPopup.show(
+                            context,
+                            title: 'Transaksi Berhasil',
+                            message: 'Pembayaran berhasil disimpan! 🛍️',
+                            type: NotificationType.transaction,
+                          );
+
+                          if (navigator.canPop()) navigator.pop();
+                        } else {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                transactionProvider.errorMessage ??
+                                    'Pembayaran gagal diproses.',
+                              ),
+                              backgroundColor: AppTheme.error,
+                            ),
+                          );
+                        }
+                      },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                 ),
@@ -608,127 +713,6 @@ class _CheckoutSheet extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _HistoryTab extends StatefulWidget {
-  final NumberFormat currencyFmt;
-  const _HistoryTab({required this.currencyFmt});
-
-  @override
-  State<_HistoryTab> createState() => _HistoryTabState();
-}
-
-class _HistoryTabState extends State<_HistoryTab> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TransactionProvider>().loadTransactions();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final txProvider = context.watch<TransactionProvider>();
-
-    if (txProvider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (txProvider.transactions.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.receipt_long_outlined,
-                size: 48, color: AppTheme.textHint),
-            SizedBox(height: 12),
-            Text('Belum ada transaksi',
-                style: TextStyle(
-                    color: AppTheme.textSecondary, fontFamily: 'Poppins')),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: txProvider.transactions.length,
-      itemBuilder: (_, i) {
-        final tx = txProvider.transactions[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.bgCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppTheme.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.receipt_long,
-                    color: AppTheme.success, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tx.invoiceNumber,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppTheme.textPrimary,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                    Text(
-                      '${tx.items.length} item • ${tx.cashierName}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textSecondary,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    widget.currencyFmt.format(tx.grandTotal),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: AppTheme.primary,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                  Text(
-                    tx.paymentMethod.label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.textSecondary,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

@@ -65,7 +65,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         title: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🔔 Notifikasi 🌸'),
+            Text('Notifikasi'),
           ],
         ),
         actions: [

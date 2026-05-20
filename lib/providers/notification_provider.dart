@@ -1,7 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-enum NotificationType { lowStock, outOfStock, transaction, info, warning }
+enum NotificationType { lowStock, outOfStock, transaction, stockAdded, flowerAdded, info, warning }
 
 class AppNotification {
   final int id;
@@ -33,11 +34,21 @@ class AppNotification {
       createdAt: DateTime.parse(json['created_at']),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'message': message,
+        'type': type.name,
+        'is_read': isRead,
+        'created_at': createdAt.toIso8601String(),
+      };
 }
 
 class NotificationProvider extends ChangeNotifier {
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
+  static const _prefKey = 'app_notifications';
 
   List<AppNotification> get notifications => _notifications;
   bool get isLoading => _isLoading;
@@ -53,16 +64,45 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await ApiService.getNotifications();
-      _notifications = (response['data'] as List)
-          .map((e) => AppNotification.fromJson(e))
-          .toList();
-    } catch (e) {
-      // Silently fail
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefKey);
+      if (raw != null) {
+        final List decoded = jsonDecode(raw);
+        _notifications =
+            decoded.map((e) => AppNotification.fromJson(e)).toList();
+      }
+    } catch (_) {
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _save() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(_notifications.map((n) => n.toJson()).toList());
+      await prefs.setString(_prefKey, encoded);
+    } catch (_) {}
+  }
+
+  Future<void> addNotification({
+    required String title,
+    required String message,
+    required NotificationType type,
+  }) async {
+    final id = DateTime.now().millisecondsSinceEpoch;
+    final notif = AppNotification(
+      id: id,
+      title: title,
+      message: message,
+      type: type,
+      isRead: false,
+      createdAt: DateTime.now(),
+    );
+    _notifications.insert(0, notif);
+    notifyListeners();
+    await _save();
   }
 
   Future<void> markAsRead(int id) async {
@@ -70,12 +110,21 @@ class NotificationProvider extends ChangeNotifier {
     if (index != -1) {
       _notifications[index].isRead = true;
       notifyListeners();
-      await ApiService.markNotificationRead(id);
+      await _save();
     }
   }
 
-  void addLocalNotification(AppNotification notification) {
-    _notifications.insert(0, notification);
+  Future<void> markAllAsRead() async {
+    for (final n in _notifications) {
+      n.isRead = true;
+    }
     notifyListeners();
+    await _save();
+  }
+
+  Future<void> clearAll() async {
+    _notifications.clear();
+    notifyListeners();
+    await _save();
   }
 }

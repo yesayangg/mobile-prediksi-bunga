@@ -135,21 +135,10 @@ class TransactionProvider extends ChangeNotifier {
         'note': _note,
       };
 
-      final response = await ApiService.createTransaction(data);
+      await ApiService.createTransaction(data);
 
-      try {
-        final responseData = response['data'];
-        if (responseData is Map<String, dynamic>) {
-          final transactionData = responseData['transaction'] ?? responseData;
-
-          if (transactionData is Map<String, dynamic>) {
-            final transaction = Transaction.fromJson(transactionData);
-            _transactions.insert(0, transaction);
-          }
-        }
-      } catch (_) {
-        // Backend sudah sukses, jadi parsing history tidak boleh menggagalkan transaksi.
-      }
+      // Langsung reload dari backend supaya riwayat pasti up to date
+      await loadTransactions();
 
       clearCart();
       return true;
@@ -173,9 +162,55 @@ class TransactionProvider extends ChangeNotifier {
         endDate: end,
       );
 
-      _transactions = (response['data'] as List)
-          .map((e) => Transaction.fromJson(e))
-          .toList();
+      final List items = response['data'] as List;
+
+      // Group by invoice_number karena backend return flat per item
+      final Map<String, List> grouped = {};
+      for (final item in items) {
+        final key = item['invoice_number'] ??
+            item['transaction_number'].toString();
+        grouped.putIfAbsent(key, () => []).add(item);
+      }
+
+      _transactions = grouped.entries.map((entry) {
+        final rows = entry.value;
+        final first = rows.first;
+
+        final txItems = rows.map((r) {
+          final qty = (r['quantity'] ?? r['jumlah'] ?? 1) as num;
+          final price = (r['unit_price'] ?? r['harga'] ?? 0) as num;
+          return TransactionItem(
+            flowerId: r['flower_id'] ?? 0,
+            flowerName: r['flower_name'] ?? r['nama_bunga'] ?? '',
+            quantity: qty.toInt(),
+            unitPrice: price.toDouble(),
+            subtotal: (price * qty).toDouble(),
+          );
+        }).toList();
+
+        final grandTotal = (first['grand_total'] ?? first['total_amount'] ?? 0) as num;
+        final amountPaid = (first['amount_paid'] ?? grandTotal) as num;
+        final changeVal = (first['change'] ?? 0) as num;
+
+        return Transaction(
+          id: first['id'],
+          invoiceNumber: entry.key,
+          items: txItems,
+          totalAmount: grandTotal.toDouble(),
+          grandTotal: grandTotal.toDouble(),
+          amountPaid: amountPaid.toDouble(),
+          change: changeVal.toDouble(),
+          paymentMethod: PaymentMethod.values.firstWhere(
+            (e) => e.name == first['payment_method'],
+            orElse: () => PaymentMethod.cash,
+          ),
+          note: first['note'],
+          cashierId: first['cashier_id']?.toString() ?? '-',
+          cashierName: first['cashier_name'] ?? '-',
+          createdAt: DateTime.parse(first['created_at']),
+        );
+      }).toList();
+
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
