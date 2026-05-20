@@ -392,12 +392,12 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const _CardHeader(
                 icon: Icons.local_florist,
-                title: 'Toko Bunga',
+                title: 'FLOWRIEST',
                 subtitle: 'Keindahan dalam setiap kelopak 🌸',
               ),
               const SizedBox(height: 16),
               const Text(
-                'Halo! 🌸',
+                'Halo!',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 22,

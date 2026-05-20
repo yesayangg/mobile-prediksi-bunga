@@ -43,8 +43,6 @@ class ProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(dialogContext);
 
-              final messenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(context);
 
               await context.read<AuthProvider>().logout();
               if (context.mounted) {

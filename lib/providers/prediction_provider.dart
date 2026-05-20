@@ -34,32 +34,69 @@ class PredictionProvider extends ChangeNotifier {
   List<PredictionSummary> _predictions = [];
   bool _isLoading = false;
   String? _errorMessage;
-  String _period = '7days';
+  String? _predictionDate;
 
   List<PredictionSummary> get predictions => _predictions;
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  String get period => _period;
 
-  Future<void> loadPredictions({String period = '7days'}) async {
-    _period = period;
+  bool get isLoading => _isLoading;
+
+  String? get errorMessage => _errorMessage;
+
+  String? get predictionDate => _predictionDate;
+
+  Future<void> loadPredictions() async {
     _isLoading = true;
     _errorMessage = null;
+
     notifyListeners();
 
     try {
-      final response = await ApiService.getPredictions(period: period);
+      final response = await ApiService.getPredictions();
 
       final List<dynamic> data =
           response is List ? response : (response['data'] as List? ?? []);
 
       _predictions = data
-          .map((e) => PredictionSummary.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) => PredictionSummary.fromJson(
+              e as Map<String, dynamic>,
+            ),
+          )
           .toList();
+
+      // AMBIL TANGGAL DARI BACKEND
+      if (data.isNotEmpty) {
+        final firstItem = data.first as Map<String, dynamic>;
+
+        final rawDate = firstItem['tanggal']?.toString();
+
+        if (rawDate != null && rawDate.isNotEmpty) {
+          final date = DateTime.parse(rawDate);
+
+          final months = [
+            '',
+            'Januari',
+            'Februari',
+            'Maret',
+            'April',
+            'Mei',
+            'Juni',
+            'Juli',
+            'Agustus',
+            'September',
+            'Oktober',
+            'November',
+            'Desember',
+          ];
+
+          _predictionDate = '${months[date.month]} ${date.year}';
+        }
+      }
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;
+
       notifyListeners();
     }
   }

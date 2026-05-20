@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api',
+    defaultValue: 'http://127.0.0.1:8000/api',
   );
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
@@ -206,25 +206,26 @@ class ApiService {
   }
 
   // PREDICTIONS
-  static Future<dynamic> getPredictions({
-    int? flowerId,
-    String period = '7days',
-  }) async {
-    final params = <String, String>{'period': period};
-
-    if (flowerId != null) {
-      params['flower_id'] = flowerId.toString();
-    }
-
-    final uri = Uri.parse('$baseUrl/predictions').replace(
-      queryParameters: params,
-    );
+  static Future<dynamic> getPredictions() async {
+    final uri = Uri.parse('$baseUrl/predictions');
 
     final response = await _sendRequest(
       () async => http.get(uri, headers: await _headers()),
     );
 
-    return _handleResponse(response);
+    // handle array response langsung
+    try {
+      if (response.body.isNotEmpty) {
+        final decoded = jsonDecode(response.body);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return decoded; // bisa List atau Map
+        }
+      }
+    } catch (_) {
+      throw ApiException('Response server tidak valid.', response.statusCode);
+    }
+
+    throw ApiException('Terjadi kesalahan pada server.', response.statusCode);
   }
 
   // FORGOT PASSWORD
