@@ -123,12 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('Beranda'),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
-        ],
+        
       ),
       body: SafeArea(
         child: RefreshIndicator(
