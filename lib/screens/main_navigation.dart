@@ -10,7 +10,7 @@ import 'home_screen.dart';
 import 'stock_screen.dart';
 import 'transaction_screen.dart';
 import 'prediction_screen.dart';
-import 'notification_screen.dart';
+
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -75,7 +75,7 @@ class _MainNavigationState extends State<MainNavigation> {
       const StockScreen(),
       const TransactionScreen(),
       const PredictionScreen(),
-      const NotificationScreen(),
+    
     ];
 
     return Scaffold(
@@ -157,45 +157,7 @@ class _MainNavigationState extends State<MainNavigation> {
               label: 'Prediksi',
             ),
 
-            BottomNavigationBarItem(
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.notifications_outlined),
-
-                  // Badge jumlah notifikasi belum dibaca.
-                  if (notifProvider.unreadCount > 0)
-                    Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        decoration: const BoxDecoration(
-                          color: AppTheme.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          notifProvider.unreadCount > 9
-                              ? '9+'
-                              : notifProvider.unreadCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              activeIcon: const Icon(Icons.notifications),
-              label: 'Notifikasi',
-            ),
+            
           ],
         ),
       ),
