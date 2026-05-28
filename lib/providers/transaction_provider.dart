@@ -20,6 +20,7 @@ class TransactionProvider extends ChangeNotifier {
   String? _errorMessage;
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   double _amountPaid = 0;
+  bool _isPromo = false;
   String? _note;
 
   List<CartItem> get cart => _cart;
@@ -29,6 +30,7 @@ class TransactionProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   PaymentMethod get paymentMethod => _paymentMethod;
   double get amountPaid => _amountPaid;
+  bool get isPromo => _isPromo;
   bool get cartIsEmpty => _cart.isEmpty;
 
   double get totalAmount => _cart.fold(0, (sum, item) => sum + item.subtotal);
@@ -74,6 +76,7 @@ class TransactionProvider extends ChangeNotifier {
   void clearCart() {
     _cart.clear();
     _amountPaid = 0;
+    _isPromo = false;
     _note = null;
     notifyListeners();
   }
@@ -90,6 +93,11 @@ class TransactionProvider extends ChangeNotifier {
 
   void setAmountPaid(double amount) {
     _amountPaid = amount;
+    notifyListeners();
+  }
+
+  void setPromo(bool value) {
+    _isPromo = value;
     notifyListeners();
   }
 
@@ -132,6 +140,7 @@ class TransactionProvider extends ChangeNotifier {
             _paymentMethod == PaymentMethod.cash ? _amountPaid : totalAmount,
         'change': _paymentMethod == PaymentMethod.cash ? change : 0,
         'payment_method': _paymentMethod.name,
+        'promo': _isPromo ? 1 : 0,
         'note': _note,
       };
 
@@ -167,8 +176,8 @@ class TransactionProvider extends ChangeNotifier {
       // Group by invoice_number karena backend return flat per item
       final Map<String, List> grouped = {};
       for (final item in items) {
-        final key = item['invoice_number'] ??
-            item['transaction_number'].toString();
+        final key =
+            item['invoice_number'] ?? item['transaction_number'].toString();
         grouped.putIfAbsent(key, () => []).add(item);
       }
 
@@ -188,7 +197,8 @@ class TransactionProvider extends ChangeNotifier {
           );
         }).toList();
 
-        final grandTotal = (first['grand_total'] ?? first['total_amount'] ?? 0) as num;
+        final grandTotal =
+            (first['grand_total'] ?? first['total_amount'] ?? 0) as num;
         final amountPaid = (first['amount_paid'] ?? grandTotal) as num;
         final changeVal = (first['change'] ?? 0) as num;
 
@@ -210,7 +220,6 @@ class TransactionProvider extends ChangeNotifier {
           createdAt: DateTime.parse(first['created_at']),
         );
       }).toList();
-
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
