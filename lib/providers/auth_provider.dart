@@ -37,7 +37,9 @@ class AuthProvider extends ChangeNotifier {
       final token = data['token'];
       final userData = data['user'];
 
-      if (token == null || userData == null || userData is! Map<String, dynamic>) {
+      if (token == null ||
+          userData == null ||
+          userData is! Map<String, dynamic>) {
         _status = AuthStatus.unauthenticated;
         _errorMessage = 'Response login tidak valid';
         notifyListeners();
@@ -46,6 +48,8 @@ class AuthProvider extends ChangeNotifier {
 
       final userJson = Map<String, dynamic>.from(userData);
       userJson['token'] = token;
+
+      await ApiService.saveToken(token.toString());
 
       _user = User.fromJson(userJson);
       _status = AuthStatus.authenticated;
