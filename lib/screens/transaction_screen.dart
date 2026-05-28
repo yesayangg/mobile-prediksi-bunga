@@ -75,106 +75,106 @@ class _TransactionScreenState extends State<TransactionScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PreferredSize(
-  preferredSize: const Size.fromHeight(150),
-  child: Container(
-    decoration: const BoxDecoration(
-      color: Color(0xFFC2185B),
-      borderRadius: BorderRadius.vertical(
-        bottom: Radius.circular(22),
-      ),
-    ),
-    child: SafeArea(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const SizedBox(height: 12),
-          const Text(
-            'Kasir',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: 0.5,
+        preferredSize: const Size.fromHeight(150),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFC2185B),
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(22),
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'MANAJEMEN TRANSAKSI',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 10,
-              fontWeight: FontWeight.w400,
-              color: Colors.white60,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 12),
+                const Text(
+                  'Kasir',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'MANAJEMEN TRANSAKSI',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white60,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ],
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: const Color(0xFFC2185B),
-                unselectedLabelColor: Colors.white60,
-                labelStyle: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                tabs: const [
-                  Tab(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.shopping_cart_outlined, size: 15),
-                        SizedBox(width: 5),
-                        Text('Transaksi Baru'),
+                    padding: const EdgeInsets.all(4),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicator: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      labelColor: const Color(0xFFC2185B),
+                      unselectedLabelColor: Colors.white60,
+                      labelStyle: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      tabs: const [
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.shopping_cart_outlined, size: 15),
+                              SizedBox(width: 5),
+                              Text('Transaksi Baru'),
+                            ],
+                          ),
+                        ),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.history, size: 15),
+                              SizedBox(width: 5),
+                              Text('Riwayat'),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  Tab(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.history, size: 15),
-                        SizedBox(width: 5),
-                        Text('Riwayat'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 10),
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-        ],
+        ),
       ),
-    ),
-  ),
-),
       body: TabBarView(
         controller: _tabController,
         children: [
@@ -379,8 +379,7 @@ class _ProductCard extends StatelessWidget {
               _getFlowerEmoji(flower.name),
               style: TextStyle(
                 fontSize: 52,
-                color:
-                    Colors.black.withValues(alpha: outOfStock ? 0.04 : 0.07),
+                color: Colors.black.withValues(alpha: outOfStock ? 0.04 : 0.07),
               ),
             ),
           ),
@@ -678,6 +677,74 @@ class _CheckoutSheet extends StatelessWidget {
               }).toList(),
             ),
             const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: txProvider.isPromo
+                    ? AppTheme.primary.withValues(alpha: 0.08)
+                    : AppTheme.bgLight,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color:
+                      txProvider.isPromo ? AppTheme.primary : AppTheme.border,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: txProvider.isPromo
+                          ? AppTheme.primary.withValues(alpha: 0.14)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.local_offer_outlined,
+                      size: 18,
+                      color: txProvider.isPromo
+                          ? AppTheme.primary
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Transaksi Promo',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppTheme.textPrimary,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Aktifkan jika penjualan ini memakai promo.',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: AppTheme.textSecondary,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: txProvider.isPromo,
+                    activeColor: AppTheme.primary,
+                    onChanged: (value) {
+                      context.read<TransactionProvider>().setPromo(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
             if (txProvider.paymentMethod == PaymentMethod.cash) ...[
               TextField(
                 controller: amountCtrl,
@@ -731,8 +798,9 @@ class _CheckoutSheet extends StatelessWidget {
                             context.read<NotificationProvider>();
 
                         if (transactionProvider.paymentMethod ==
-    PaymentMethod.cash &&
-    transactionProvider.amountPaid < transactionProvider.totalAmount) {
+                                PaymentMethod.cash &&
+                            transactionProvider.amountPaid <
+                                transactionProvider.totalAmount) {
                           messenger.showSnackBar(
                             const SnackBar(
                               content: Text(
