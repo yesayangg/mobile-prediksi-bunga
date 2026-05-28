@@ -6,7 +6,6 @@ import '../theme/app_theme.dart';
 import 'package:intl/intl.dart';
 import 'add_stock_sheet.dart';
 
-
 class StockScreen extends StatefulWidget {
   const StockScreen({super.key});
 
@@ -22,7 +21,6 @@ class _StockScreenState extends State<StockScreen> {
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<StockProvider>().loadStocks(refresh: true);
     });
@@ -39,64 +37,94 @@ class _StockScreenState extends State<StockScreen> {
     final stockProvider = context.watch<StockProvider>();
 
     return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: Container(
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(120),
+        child: Container(
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFfbaecb), Color(0xFFf4859e), Color(0xFFe86a8a)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            color: Color(0xFFC2185B),
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(22),
             ),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Stok Bunga',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.refresh,
+                              color: Colors.white, size: 18),
+                          onPressed: () =>
+                              stockProvider.loadStocks(refresh: true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      children: [
+                        _HeaderFilterChip(
+                          label: 'Semua',
+                          isSelected: !stockProvider.isLowStockFilter &&
+                              stockProvider.selectedCategory == null,
+                          onTap: () {
+                            stockProvider.toggleLowStockFilter(false);
+                            stockProvider.filterByCategory(null);
+                          },
+                        ),
+                        _HeaderFilterChip(
+                          label: 'Tersedia',
+                          isSelected:
+                              stockProvider.selectedCategory == 'tersedia',
+                          onTap: () => stockProvider.filterAvailable(),
+                        ),
+                        _HeaderFilterChip(
+                          label: 'Stok Kritis',
+                          isSelected: stockProvider.isLowStockFilter,
+                          onTap: () =>
+                              stockProvider.toggleLowStockFilter(true),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
             ),
           ),
         ),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(20),
-            bottomRight: Radius.circular(20),
-          ),
-        ),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _FlowerDecorLeft(),
-            SizedBox(width: 8),
-            Text(
-              'Stok Bunga',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-                fontSize: 17,
-                letterSpacing: 0.4,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
-                onPressed: () => stockProvider.loadStocks(refresh: true),
-              ),
-            ),
-          ),
-        ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.primary,
@@ -119,44 +147,13 @@ class _StockScreenState extends State<StockScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchCtrl,
-                  onChanged: stockProvider.search,
-                  decoration: const InputDecoration(
-                    hintText: 'Cari bunga...',
-                    prefixIcon: Icon(Icons.search, size: 20),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 36,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _FilterChip(
-                        label: 'Semua',
-                        isSelected: true,
-                        onTap: () => stockProvider.filterByCategory(null),
-                      ),
-                      _FilterChip(
-                        label: 'Stok Kritis',
-                        isSelected: false,
-                        onTap: () => stockProvider.toggleLowStockFilter(true),
-                        isWarning: true,
-                      ),
-                      ...stockProvider.categories.map(
-                        (cat) => _FilterChip(
-                          label: cat,
-                          isSelected: false,
-                          onTap: () => stockProvider.filterByCategory(cat),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: stockProvider.search,
+              decoration: const InputDecoration(
+                hintText: 'Cari bunga...',
+                prefixIcon: Icon(Icons.search, size: 20),
+              ),
             ),
           ),
           Padding(
@@ -174,8 +171,8 @@ class _StockScreenState extends State<StockScreen> {
                 const Spacer(),
                 if (stockProvider.lowStockCount > 0)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppTheme.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -218,7 +215,8 @@ class _StockScreenState extends State<StockScreen> {
                         onRefresh: () =>
                             stockProvider.loadStocks(refresh: true),
                         child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          padding:
+                              const EdgeInsets.fromLTRB(16, 4, 16, 16),
                           itemCount: stockProvider.stocks.length,
                           itemBuilder: (_, i) {
                             final item = stockProvider.stocks[i];
@@ -234,70 +232,6 @@ class _StockScreenState extends State<StockScreen> {
       ),
     );
   }
-}
-
-class _FlowerDecorLeft extends StatelessWidget {
-  const _FlowerDecorLeft();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: CustomPaint(painter: _FlowerPainter()),
-    );
-  }
-}
-
-class _FlowerPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    final petalPaint1 = Paint()
-      ..color = Colors.white.withOpacity(0.75)
-      ..style = PaintingStyle.fill;
-    final petalPaint2 = Paint()
-      ..color = const Color(0xFFffd0e8).withOpacity(0.85)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 9; i++) {
-      final angle = (i * 40) * 3.14159 / 180;
-      final paint = i.isEven ? petalPaint1 : petalPaint2;
-      canvas.save();
-      canvas.translate(cx, cy);
-      canvas.rotate(angle);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: const Offset(0, -9),
-          width: 5.5,
-          height: 10,
-        ),
-        paint,
-      );
-      canvas.restore();
-    }
-
-    canvas.drawCircle(
-      Offset(cx, cy),
-      5.5,
-      Paint()..color = const Color(0xFFFFFBD0).withOpacity(0.9),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      3.5,
-      Paint()..color = const Color(0xFFF0C840).withOpacity(0.95),
-    );
-    final dotPaint = Paint()
-      ..color = const Color(0xFFC89010).withOpacity(0.7);
-    canvas.drawCircle(Offset(cx - 1.2, cy - 1.2), 0.9, dotPaint);
-    canvas.drawCircle(Offset(cx + 1.5, cy - 0.5), 0.8, dotPaint);
-    canvas.drawCircle(Offset(cx, cy + 1.5), 0.85, dotPaint);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
 
 class _StockCard extends StatelessWidget {
@@ -453,41 +387,48 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
+class _HeaderFilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
-  final bool isWarning;
 
-  const _FilterChip({
+  const _HeaderFilterChip({
     required this.label,
     required this.isSelected,
     required this.onTap,
-    this.isWarning = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = isWarning ? AppTheme.warning : AppTheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? color : color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : color.withValues(alpha: 0.2),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : color,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            fontFamily: 'Poppins',
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isSelected
+                  ? const Color(0xFFC2185B)
+                  : Colors.white60,
+            ),
           ),
         ),
       ),

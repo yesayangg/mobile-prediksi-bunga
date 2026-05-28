@@ -17,6 +17,8 @@ class StockProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   int get lowStockCount => lowStockItems.length;
+  bool get isLowStockFilter => _showLowStockOnly;
+  String? get selectedCategory => _selectedCategory;
 
   List<String> get categories {
     final cats = _stocks.map((s) => s.category).toSet().toList();
@@ -33,7 +35,7 @@ class StockProvider extends ChangeNotifier {
     try {
       final response = await ApiService.getStocks(
         search: _searchQuery.isEmpty ? null : _searchQuery,
-        category: _selectedCategory,
+        category: _selectedCategory == 'tersedia' ? null : _selectedCategory,
         lowStockOnly: _showLowStockOnly ? true : null,
       );
       _stocks = (response['data'] as List)
@@ -56,12 +58,21 @@ class StockProvider extends ChangeNotifier {
 
   void filterByCategory(String? category) {
     _selectedCategory = category;
+    _showLowStockOnly = false;
+    _applyFilters();
+    notifyListeners();
+  }
+
+  void filterAvailable() {
+    _showLowStockOnly = false;
+    _selectedCategory = 'tersedia';
     _applyFilters();
     notifyListeners();
   }
 
   void toggleLowStockFilter(bool value) {
     _showLowStockOnly = value;
+    if (value) _selectedCategory = null;
     _applyFilters();
     notifyListeners();
   }
@@ -70,8 +81,10 @@ class StockProvider extends ChangeNotifier {
     _filteredStocks = _stocks.where((stock) {
       final matchSearch = _searchQuery.isEmpty ||
           stock.name.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchCategory =
-          _selectedCategory == null || stock.category == _selectedCategory;
+      final matchCategory = _selectedCategory == null ||
+          (_selectedCategory == 'tersedia'
+              ? stock.stock > 0
+              : stock.category == _selectedCategory);
       final matchLowStock = !_showLowStockOnly || stock.isLowStock;
       return matchSearch && matchCategory && matchLowStock;
     }).toList();

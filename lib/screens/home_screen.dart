@@ -57,19 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _summaryInt(String key) {
     final value = _summary?[key];
-
-    if (value is int) {
-      return value;
-    }
-
-    if (value is double) {
-      return value.round();
-    }
-
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
-
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) return int.tryParse(value) ?? 0;
     return 0;
   }
 
@@ -77,10 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
     return _numberFmt.format(_summaryInt(key));
   }
 
+  String _getTime() {
+    final now = DateTime.now();
+    final h = now.hour.toString().padLeft(2, '0');
+    final m = now.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
   Future<void> _loadSummary() async {
     try {
       final resp = await ApiService.getDashboardSummary();
-
       if (mounted) {
         setState(() {
           _summary = resp['data'];
@@ -101,6 +97,166 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Widget _buildHeader(String greeting, String name) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Column(
+        children: [
+          // Top bar - pink tua
+          Container(
+            color: const Color(0xFFC2185B),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Beranda',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProfileScreen(),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(24),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_outline,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Body - pink muda
+          Container(
+            color: const Color(0xFFFCE8F0),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$greeting 👋 selamat datang kembali',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFA0506E),
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Halo, $name!',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A1A),
+                        fontFamily: 'Poppins',
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _getTime(),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFC2185B),
+                        fontFamily: 'Poppins',
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'WIB',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFA0506E),
+                        letterSpacing: 1,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Footer
+          Container(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+          decoration: const BoxDecoration(
+          color: Color(0xFFFCE8F0),  // ← pindah ke sini
+          border: Border(
+            top: BorderSide(color: Color(0xFFF5C6D8), width: 1),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Ringkasan Sistem',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFFA0506E),
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4CAF50),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Semua berjalan normal',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFA0506E),
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -116,15 +272,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final lowStockCount = _summaryInt('low_stock');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Beranda'),
-          ],
-        ),
-        
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -134,72 +281,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              // Greeting Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Halo, ${auth.user?.name ?? 'Pengguna'}!',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Text(
-                              '$greeting, selamat datang kembali ',
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 13,
-                                fontFamily: 'Poppins',
-                              ),
-                            ),
-                            const Text('👋', style: TextStyle(fontSize: 13)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(24),
-                    child: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                      child: const Icon(
-                        Icons.person_outline,
-                        color: AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              // Header Baru
+              _buildHeader(greeting, auth.user?.name ?? 'Pengguna'),
               const SizedBox(height: 24),
-
-              // Stats
-              const Text(
-                'Ringkasan Sistem',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                  fontFamily: 'Poppins',
-                ),
-              ),
-              const SizedBox(height: 12),
 
               if (_loadingSummary)
                 const Padding(
