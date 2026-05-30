@@ -639,7 +639,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   decoration: _inputDeco(
                     label: 'Kata sandi',
-                    hint: 'Minimal 6 karakter',
+                    hint: 'Minimal 8 karakter',
                     prefix: Icons.lock_outline_rounded,
                     suffix: IconButton(
                       tooltip: _obscure
@@ -657,7 +657,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Kata sandi wajib diisi';
-                    if (v.length < 6) return 'Minimal 6 karakter';
+                    if (v.length < 8) return 'Minimal 8 karakter';
                     return null;
                   },
                   onFieldSubmitted: (_) {

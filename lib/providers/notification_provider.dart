@@ -1,8 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-enum NotificationType { lowStock, outOfStock, transaction, stockAdded, flowerAdded, info, warning }
+enum NotificationType {
+  lowStock,
+  outOfStock,
+  transaction,
+  stockAdded,
+  flowerAdded,
+  info,
+  warning
+}
 
 class AppNotification {
   final int id;
@@ -48,6 +56,7 @@ class AppNotification {
 class NotificationProvider extends ChangeNotifier {
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
+  static const _storage = FlutterSecureStorage();
   static const _prefKey = 'app_notifications';
 
   List<AppNotification> get notifications => _notifications;
@@ -64,8 +73,7 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_prefKey);
+      final raw = await _storage.read(key: _prefKey);
       if (raw != null) {
         final List decoded = jsonDecode(raw);
         _notifications =
@@ -80,9 +88,9 @@ class NotificationProvider extends ChangeNotifier {
 
   Future<void> _save() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final encoded = jsonEncode(_notifications.map((n) => n.toJson()).toList());
-      await prefs.setString(_prefKey, encoded);
+      final encoded =
+          jsonEncode(_notifications.map((n) => n.toJson()).toList());
+      await _storage.write(key: _prefKey, value: encoded);
     } catch (_) {}
   }
 
