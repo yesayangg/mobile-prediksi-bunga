@@ -9,11 +9,13 @@ class AuthProvider extends ChangeNotifier {
   User? _user;
   String? _errorMessage;
   String? _serverStatusMessage;
+  String? _rateLimitMessage;
 
   AuthStatus get status => _status;
   User? get user => _user;
   String? get errorMessage => _errorMessage;
   String? get serverStatusMessage => _serverStatusMessage;
+  String? get rateLimitMessage => _rateLimitMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   bool get isOwner => _user?.isOwner ?? false;
   bool get isCashier => _user?.isCashier ?? false;
@@ -22,10 +24,14 @@ class AuthProvider extends ChangeNotifier {
     _status = AuthStatus.loading;
     _errorMessage = null;
     _serverStatusMessage = null;
+    _rateLimitMessage = null;
     notifyListeners();
 
     try {
-      final response = await ApiService.login(email, password);
+      final response = await ApiService.login(
+        ApiService.normalizeEmail(email),
+        password,
+      );
 
       final success = response['success'] == true;
       final data = response['data'];
@@ -54,11 +60,13 @@ class AuthProvider extends ChangeNotifier {
       userJson['token'] = token;
 
       await ApiService.saveToken(token.toString());
+      await ApiService.saveLastLoginEmail(email);
 
       _user = User.fromJson(userJson);
       _status = AuthStatus.authenticated;
       _errorMessage = null;
       _serverStatusMessage = null;
+      _rateLimitMessage = null;
       notifyListeners();
 
       return true;
@@ -67,6 +75,7 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.unauthenticated;
       _errorMessage = 'Email atau kata sandi belum sesuai.';
       _serverStatusMessage = null;
+      _rateLimitMessage = null;
       notifyListeners();
       return false;
     } on ApiException catch (e) {
@@ -77,13 +86,21 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage =
             'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.';
         _serverStatusMessage = 'Server toko belum bisa dijangkau.';
+        _rateLimitMessage = null;
       } else if (e.statusCode == 403) {
-        _errorMessage =
-            'Akun kasir ini belum bisa masuk. Silakan hubungi admin.';
+        _errorMessage = e.message.isNotEmpty
+            ? e.message
+            : 'Akun kasir sedang nonaktif. Silakan hubungi admin.';
         _serverStatusMessage = null;
+        _rateLimitMessage = null;
+      } else if (e.statusCode == 429) {
+        _errorMessage = 'Terlalu banyak percobaan. Coba lagi sebentar.';
+        _serverStatusMessage = null;
+        _rateLimitMessage = 'Terlalu banyak percobaan. Coba lagi sebentar.';
       } else {
         _errorMessage = e.message;
         _serverStatusMessage = null;
+        _rateLimitMessage = null;
       }
 
       notifyListeners();
@@ -94,6 +111,7 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage =
           'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.';
       _serverStatusMessage = 'Server toko belum bisa dijangkau.';
+      _rateLimitMessage = null;
       notifyListeners();
       return false;
     }
@@ -105,11 +123,13 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {
       await ApiService.clearToken();
     }
+    await ApiService.clearLastLoginEmail();
 
     _user = null;
     _status = AuthStatus.unauthenticated;
     _errorMessage = null;
     _serverStatusMessage = null;
+    _rateLimitMessage = null;
     notifyListeners();
   }
 
@@ -125,6 +145,7 @@ class AuthProvider extends ChangeNotifier {
 
     _errorMessage = null;
     _serverStatusMessage = null;
+    _rateLimitMessage = null;
 
     notifyListeners();
   }

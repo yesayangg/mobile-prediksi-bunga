@@ -12,6 +12,11 @@ class ApiService {
   );
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const String _lastLoginEmailKey = 'last_login_email';
+
+  static void Function(String message)? onSessionExpired;
+
+  static String normalizeEmail(String email) => email.trim().toLowerCase();
 
   static Future<String?> getToken() async {
     return await _storage.read(key: 'auth_token');
@@ -23,6 +28,21 @@ class ApiService {
 
   static Future<void> clearToken() async {
     await _storage.delete(key: 'auth_token');
+  }
+
+  static Future<void> clearLastLoginEmail() async {
+    await _storage.delete(key: _lastLoginEmailKey);
+  }
+
+  static Future<String?> getLastLoginEmail() async {
+    return await _storage.read(key: _lastLoginEmailKey);
+  }
+
+  static Future<void> saveLastLoginEmail(String email) async {
+    final normalizedEmail = normalizeEmail(email);
+    if (normalizedEmail.isEmpty) return;
+
+    await _storage.write(key: _lastLoginEmailKey, value: normalizedEmail);
   }
 
   static Future<Map<String, String>> _headers() async {
@@ -68,12 +88,14 @@ class ApiService {
     String email,
     String password,
   ) async {
+    final normalizedEmail = normalizeEmail(email);
+
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: await _headers(),
         body: jsonEncode({
-          'email': email,
+          'email': normalizedEmail,
           'password': password,
         }),
       ),
@@ -230,11 +252,13 @@ class ApiService {
 
   // FORGOT PASSWORD
   static Future<void> forgotPassword(String email) async {
+    final normalizedEmail = normalizeEmail(email);
+
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/forgot-password'),
         headers: await _headers(),
-        body: jsonEncode({'email': email}),
+        body: jsonEncode({'email': normalizedEmail}),
       ),
     );
 
@@ -242,12 +266,14 @@ class ApiService {
   }
 
   static Future<void> verifyOtp(String email, String otp) async {
+    final normalizedEmail = normalizeEmail(email);
+
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/verify-otp'),
         headers: await _headers(),
         body: jsonEncode({
-          'email': email,
+          'email': normalizedEmail,
           'otp': otp,
         }),
       ),
@@ -261,12 +287,14 @@ class ApiService {
     String otp,
     String newPassword,
   ) async {
+    final normalizedEmail = normalizeEmail(email);
+
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/reset-password'),
         headers: await _headers(),
         body: jsonEncode({
-          'email': email,
+          'email': normalizedEmail,
           'otp': otp,
           'password': newPassword,
           'password_confirmation': newPassword,
@@ -319,8 +347,18 @@ class ApiService {
     }
 
     if (response.statusCode == 401) {
+      final path = response.request?.url.path ?? '';
+      final isAuthEndpoint = path.contains('/auth/');
+      final message = body['message']?.toString() ??
+          'Sesi masuk berakhir. Silakan masuk kembali.';
+
+      if (!isAuthEndpoint) {
+        unawaited(clearToken());
+        onSessionExpired?.call('Sesi masuk berakhir. Silakan masuk kembali.');
+      }
+
       throw UnauthorizedException(
-        body['message']?.toString() ?? 'Email atau kata sandi belum sesuai.',
+        message,
       );
     }
 
