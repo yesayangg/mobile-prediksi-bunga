@@ -1,5 +1,5 @@
-name: flower_shop
-description: Sistem Mobile Toko Bunga
+name: florashop
+description: Sistem Mobile FloraShop
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -34,6 +34,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/flower_header.svg
+    - assets/icons/app_icon.png
 
   
   

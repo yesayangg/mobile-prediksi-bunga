@@ -23,11 +23,11 @@ void main() async {
     ]);
   }
 
-  runApp(const FlowerShopApp());
+  runApp(const FloraShopApp());
 }
 
-class FlowerShopApp extends StatelessWidget {
-  const FlowerShopApp({super.key});
+class FloraShopApp extends StatelessWidget {
+  const FloraShopApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class FlowerShopApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
-        title: 'Toko Bunga',
+        title: 'FloraShop',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const SplashScreen(),

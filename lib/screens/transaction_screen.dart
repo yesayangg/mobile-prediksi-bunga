@@ -78,7 +78,7 @@ class _TransactionScreenState extends State<TransactionScreen>
         preferredSize: const Size.fromHeight(150),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFFC2185B),
+            color: AppTheme.primary,
             borderRadius: BorderRadius.vertical(
               bottom: Radius.circular(22),
             ),
@@ -132,7 +132,7 @@ class _TransactionScreenState extends State<TransactionScreen>
                         ],
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
-                      labelColor: const Color(0xFFC2185B),
+                      labelColor: AppTheme.primary,
                       unselectedLabelColor: Colors.white60,
                       labelStyle: const TextStyle(
                         fontFamily: 'Poppins',

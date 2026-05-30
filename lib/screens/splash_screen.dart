@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import '../theme/app_theme.dart';
+import '../widgets/florashop_logo.dart';
 import 'login_screen.dart';
 import 'main_navigation.dart';
 
@@ -64,57 +64,61 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primary,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: ScaleTransition(
-            scale: _scaleAnim,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(30),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF5D1734),
+              Color(0xFFE21666),
+              Color(0xFFFFD8EA),
+            ],
+            stops: [0, 0.58, 1],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: ScaleTransition(
+              scale: _scaleAnim,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const FloraShopLogo(size: 112),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'FLORASHOP',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 33,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.local_florist,
-                    size: 56,
-                    color: Colors.white,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Bunga segar, suasana ceria',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Toko Bunga',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Poppins',
+                  const SizedBox(height: 48),
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(
+                      color: Colors.white.withValues(alpha: 0.74),
+                      strokeWidth: 2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sistem Manajemen Penjualan',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 14,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-                const SizedBox(height: 48),
-                SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    strokeWidth: 2,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

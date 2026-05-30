@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/stock_provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/florashop_logo.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -102,21 +103,48 @@ class _HomeScreenState extends State<HomeScreen> {
       borderRadius: BorderRadius.circular(18),
       child: Column(
         children: [
-          // Top bar - pink tua
           Container(
-            color: const Color(0xFFC2185B),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF5D1734), Color(0xFFD91D68)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Beranda',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                  ),
+                const Row(
+                  children: [
+                    FloraShopLogo(size: 34, showShadow: false),
+                    SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'FLORASHOP',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        Text(
+                          'Beranda',
+                          style: TextStyle(
+                            color: Color(0xFFFFD9EA),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 InkWell(
                   onTap: () {
@@ -154,29 +182,33 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$greeting 👋 selamat datang kembali',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFFA0506E),
-                        fontFamily: 'Poppins',
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$greeting, selamat datang kembali',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFFA0506E),
+                          fontFamily: 'Poppins',
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Halo, $name!',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
-                        fontFamily: 'Poppins',
-                        height: 1,
+                      const SizedBox(height: 5),
+                      Text(
+                        'Halo, $name!',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                          fontFamily: 'Poppins',
+                          height: 1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -186,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: const TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFC2185B),
+                        color: AppTheme.primary,
                         fontFamily: 'Poppins',
                         height: 1,
                       ),
@@ -209,11 +241,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Footer
           Container(
-          padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
-          decoration: const BoxDecoration(
-          color: Color(0xFFFCE8F0),  // ← pindah ke sini
-          border: Border(
-            top: BorderSide(color: Color(0xFFF5C6D8), width: 1),
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFCE8F0), // ← pindah ke sini
+              border: Border(
+                top: BorderSide(color: Color(0xFFF5C6D8), width: 1),
               ),
             ),
             child: Row(
