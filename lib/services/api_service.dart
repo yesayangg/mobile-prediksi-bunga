@@ -42,22 +42,22 @@ class ApiService {
       return await request().timeout(const Duration(seconds: 10));
     } on TimeoutException {
       throw ApiException(
-        'Koneksi ke server terlalu lama. Pastikan backend aktif dan jaringan stabil.',
+        'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.',
         408,
       );
     } on SocketException {
       throw ApiException(
-        'Tidak dapat terhubung ke server. Pastikan HP dan laptop berada di jaringan yang sama.',
+        'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.',
         0,
       );
     } on http.ClientException {
       throw ApiException(
-        'Koneksi ke server gagal. Periksa alamat API dan koneksi jaringan.',
+        'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.',
         0,
       );
     } catch (_) {
       throw ApiException(
-        'Terjadi gangguan koneksi ke server.',
+        'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.',
         0,
       );
     }
@@ -320,7 +320,7 @@ class ApiService {
 
     if (response.statusCode == 401) {
       throw UnauthorizedException(
-        body['message']?.toString() ?? 'Email atau password salah.',
+        body['message']?.toString() ?? 'Email atau kata sandi belum sesuai.',
       );
     }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -9,6 +10,411 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/florashop_logo.dart';
 import 'main_navigation.dart';
+
+void _showSoftKeyboard() {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    Future<void>.delayed(const Duration(milliseconds: 80), () {
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
+    Future<void>.delayed(const Duration(milliseconds: 180), () {
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
+  });
+}
+
+const String _passwordMaskChar = '•';
+
+String _passwordMask(int length) =>
+    List.filled(length, _passwordMaskChar).join();
+
+class _NoPeekPasswordFormatter extends TextInputFormatter {
+  final TextEditingController rawController;
+
+  _NoPeekPasswordFormatter(this.rawController);
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final rawText = rawController.text;
+    final oldMask = oldValue.text;
+    final incoming = newValue.text;
+
+    if (incoming == oldMask) {
+      final cursor =
+          newValue.selection.baseOffset.clamp(0, rawText.length).toInt();
+      return TextEditingValue(
+        text: _passwordMask(rawText.length),
+        selection: TextSelection.collapsed(offset: cursor),
+      );
+    }
+
+    var prefix = 0;
+    while (prefix < oldMask.length &&
+        prefix < incoming.length &&
+        oldMask.codeUnitAt(prefix) == incoming.codeUnitAt(prefix)) {
+      prefix++;
+    }
+
+    var oldSuffix = oldMask.length;
+    var incomingSuffix = incoming.length;
+    while (oldSuffix > prefix &&
+        incomingSuffix > prefix &&
+        oldMask.codeUnitAt(oldSuffix - 1) ==
+            incoming.codeUnitAt(incomingSuffix - 1)) {
+      oldSuffix--;
+      incomingSuffix--;
+    }
+
+    final removedCount = oldSuffix - prefix;
+    final insertedText = incoming
+        .substring(prefix, incomingSuffix)
+        .replaceAll(_passwordMaskChar, '');
+    final replaceStart = math.min(prefix, rawText.length);
+    final replaceEnd = math.min(replaceStart + removedCount, rawText.length);
+    final nextRawText = rawText.replaceRange(
+      replaceStart,
+      replaceEnd,
+      insertedText,
+    );
+    final cursor = math.min(
+      nextRawText.length,
+      replaceStart + insertedText.length,
+    );
+
+    rawController.value = TextEditingValue(
+      text: nextRawText,
+      selection: TextSelection.collapsed(offset: cursor),
+    );
+
+    return TextEditingValue(
+      text: _passwordMask(nextRawText.length),
+      selection: TextSelection.collapsed(offset: cursor),
+    );
+  }
+}
+
+class _NoPeekPasswordField extends StatefulWidget {
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final bool isObscured;
+  final VoidCallback onToggleVisibility;
+  final String label;
+  final String hint;
+  final IconData prefix;
+  final TextInputAction textInputAction;
+  final Iterable<String>? autofillHints;
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onFieldSubmitted;
+
+  const _NoPeekPasswordField({
+    required this.controller,
+    required this.isObscured,
+    required this.onToggleVisibility,
+    required this.label,
+    required this.hint,
+    required this.prefix,
+    required this.textInputAction,
+    this.focusNode,
+    this.autofillHints,
+    this.validator,
+    this.onFieldSubmitted,
+  });
+
+  @override
+  State<_NoPeekPasswordField> createState() => _NoPeekPasswordFieldState();
+}
+
+class _NoPeekPasswordFieldState extends State<_NoPeekPasswordField> {
+  late final TextEditingController _maskController;
+  late final _NoPeekPasswordFormatter _formatter;
+
+  @override
+  void initState() {
+    super.initState();
+    _maskController = TextEditingController(
+      text: _passwordMask(widget.controller.text.length),
+    );
+    _formatter = _NoPeekPasswordFormatter(widget.controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NoPeekPasswordField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.controller != oldWidget.controller) {
+      _formatter.rawController.value = widget.controller.value;
+    }
+
+    if (widget.isObscured) {
+      _syncMaskController();
+    }
+  }
+
+  @override
+  void dispose() {
+    _maskController.dispose();
+    super.dispose();
+  }
+
+  void _syncMaskController() {
+    final rawLength = widget.controller.text.length;
+    final mask = _passwordMask(rawLength);
+    final cursor =
+        _maskController.selection.baseOffset.clamp(0, rawLength).toInt();
+
+    if (_maskController.text != mask) {
+      _maskController.value = TextEditingValue(
+        text: mask,
+        selection: TextSelection.collapsed(offset: cursor),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isObscured) {
+      _syncMaskController();
+    }
+
+    return TextFormField(
+      controller: widget.isObscured ? _maskController : widget.controller,
+      focusNode: widget.focusNode,
+      keyboardType: TextInputType.visiblePassword,
+      textInputAction: widget.textInputAction,
+      enableSuggestions: false,
+      autocorrect: false,
+      enableIMEPersonalizedLearning: false,
+      smartDashesType: SmartDashesType.disabled,
+      smartQuotesType: SmartQuotesType.disabled,
+      autofillHints: widget.autofillHints,
+      inputFormatters: widget.isObscured ? [_formatter] : const [],
+      onTap: _showSoftKeyboard,
+      style: const TextStyle(
+        fontFamily: 'Poppins',
+        fontSize: 14,
+        color: AppTheme.textPrimary,
+        letterSpacing: 0,
+      ),
+      decoration: _inputDeco(
+        label: widget.label,
+        hint: widget.hint,
+        prefix: widget.prefix,
+        suffix: IconButton(
+          tooltip: widget.isObscured
+              ? 'Tampilkan kata sandi'
+              : 'Sembunyikan kata sandi',
+          icon: Icon(
+            widget.isObscured
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            color: const Color(0xFFD94D83),
+            size: 20,
+          ),
+          onPressed: widget.onToggleVisibility,
+        ),
+      ),
+      validator: (_) => widget.validator?.call(widget.controller.text),
+      onFieldSubmitted: widget.onFieldSubmitted,
+    );
+  }
+}
+
+class _ReliableEmailField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final TextInputAction textInputAction;
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onFieldSubmitted;
+
+  const _ReliableEmailField({
+    required this.controller,
+    required this.focusNode,
+    required this.textInputAction,
+    this.validator,
+    this.onFieldSubmitted,
+  });
+
+  void _focusAndShowKeyboard() {
+    focusNode.requestFocus();
+    _showSoftKeyboard();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _focusAndShowKeyboard(),
+      child: TextFormField(
+        controller: controller,
+        focusNode: focusNode,
+        keyboardType: TextInputType.visiblePassword,
+        textInputAction: textInputAction,
+        enableSuggestions: false,
+        autocorrect: false,
+        enableIMEPersonalizedLearning: false,
+        smartDashesType: SmartDashesType.disabled,
+        smartQuotesType: SmartQuotesType.disabled,
+        textCapitalization: TextCapitalization.none,
+        onTap: _focusAndShowKeyboard,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 14,
+          color: AppTheme.textPrimary,
+          letterSpacing: 0,
+        ),
+        decoration: _inputDeco(
+          label: 'Email',
+          hint: 'nama@email.com',
+          prefix: Icons.mail_outline_rounded,
+        ),
+        validator: validator,
+        onFieldSubmitted: onFieldSubmitted,
+      ),
+    );
+  }
+}
+
+const String _connectionErrorText =
+    'Tidak bisa terhubung ke server. Pastikan internet aktif atau hubungi admin.';
+
+String _firstValidationMessage(Map<String, dynamic>? errors, String field) {
+  final value = errors?[field];
+
+  if (value is List && value.isNotEmpty) {
+    return value.first.toString();
+  }
+
+  if (value is String && value.isNotEmpty) {
+    return value;
+  }
+
+  return '';
+}
+
+bool _isConnectionError(Object error) {
+  return error is ApiException &&
+      (error.statusCode == 0 ||
+          error.statusCode == 408 ||
+          error.statusCode >= 500);
+}
+
+String _friendlyErrorMessage(Object error, {String? preferredField}) {
+  if (error is UnauthorizedException) {
+    return 'Email atau kata sandi belum sesuai.';
+  }
+
+  if (error is ValidationException) {
+    final fieldMessage = preferredField == null
+        ? ''
+        : _firstValidationMessage(error.errors, preferredField);
+
+    if (fieldMessage.isNotEmpty) return fieldMessage;
+
+    return error.message;
+  }
+
+  if (_isConnectionError(error)) {
+    return _connectionErrorText;
+  }
+
+  if (error is ApiException) {
+    return error.message;
+  }
+
+  return 'Permintaan belum berhasil. Silakan coba lagi.';
+}
+
+class _FieldHelperText extends StatelessWidget {
+  final String text;
+
+  const _FieldHelperText(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 7),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 11,
+          height: 1.35,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFFA84C75),
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldErrorText extends StatelessWidget {
+  final String text;
+
+  const _FieldErrorText(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 7),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 11,
+          height: 1.35,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.error,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _ServerStatusNotice extends StatelessWidget {
+  final String text;
+
+  const _ServerStatusNotice(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFBCFA4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.wifi_off_rounded,
+            size: 17,
+            color: Color(0xFFC2410C),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11.5,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF9A3412),
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _FlowerBackground extends StatelessWidget {
   final Widget child;
@@ -18,6 +424,7 @@ class _FlowerBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardOpen = bottomInset > 0;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -41,16 +448,29 @@ class _FlowerBackground extends StatelessWidget {
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  final minHeight = math.max(
+                    0.0,
+                    constraints.maxHeight - 48 - bottomInset,
+                  );
+
                   return SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + bottomInset),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: math.max(0.0, constraints.maxHeight - 48),
-                      ),
-                      child: Center(child: child),
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      isKeyboardOpen ? 12 : 24,
+                      20,
+                      24 + bottomInset,
+                    ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      constraints: BoxConstraints(minHeight: minHeight),
+                      alignment: isKeyboardOpen
+                          ? Alignment.topCenter
+                          : Alignment.center,
+                      child: child,
                     ),
                   );
                 },
@@ -520,6 +940,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
   Timer? _hidePasswordTimer;
@@ -527,6 +949,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _hidePasswordTimer?.cancel();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
@@ -573,7 +997,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.read<AuthProvider>().errorMessage ?? 'Login gagal',
+            context.read<AuthProvider>().errorMessage ?? 'Masuk belum berhasil',
           ),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
@@ -603,58 +1027,34 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
+                _ReliableEmailField(
                   controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
+                  focusNode: _emailFocusNode,
                   textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.email],
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                  decoration: _inputDeco(
-                    label: 'Email',
-                    hint: 'nama@email.com',
-                    prefix: Icons.mail_outline_rounded,
-                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email wajib diisi';
                     if (!v.contains('@')) return 'Email tidak valid';
                     return null;
                   },
+                  onFieldSubmitted: (_) {
+                    _passwordFocusNode.requestFocus();
+                    _showSoftKeyboard();
+                  },
+                ),
+                const _FieldHelperText(
+                  'Gunakan email kasir yang terdaftar di web admin.',
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
+                _NoPeekPasswordField(
                   controller: _passCtrl,
-                  obscureText: _obscure,
+                  focusNode: _passwordFocusNode,
+                  isObscured: _obscure,
+                  onToggleVisibility: _togglePasswordVisibility,
+                  label: 'Kata sandi',
+                  hint: 'Minimal 8 karakter',
+                  prefix: Icons.lock_outline_rounded,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.password],
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                  decoration: _inputDeco(
-                    label: 'Kata sandi',
-                    hint: 'Minimal 8 karakter',
-                    prefix: Icons.lock_outline_rounded,
-                    suffix: IconButton(
-                      tooltip: _obscure
-                          ? 'Tampilkan kata sandi'
-                          : 'Sembunyikan kata sandi',
-                      icon: Icon(
-                        _obscure
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: const Color(0xFFD94D83),
-                        size: 20,
-                      ),
-                      onPressed: _togglePasswordVisibility,
-                    ),
-                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Kata sandi wajib diisi';
                     if (v.length < 8) return 'Minimal 8 karakter';
@@ -664,6 +1064,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (!isLoading) _login();
                   },
                 ),
+                if (authProvider.serverStatusMessage != null) ...[
+                  const SizedBox(height: 10),
+                  _ServerStatusNotice(authProvider.serverStatusMessage!),
+                ],
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -712,11 +1116,15 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailCtrl = TextEditingController();
+  final _emailFocusNode = FocusNode();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  String? _emailErrorMessage;
+  String? _serverStatusMessage;
 
   @override
   void dispose() {
+    _emailFocusNode.dispose();
     _emailCtrl.dispose();
     super.dispose();
   }
@@ -724,7 +1132,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _sendEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _emailErrorMessage = null;
+      _serverStatusMessage = null;
+    });
 
     try {
       await ApiService.forgotPassword(_emailCtrl.text.trim());
@@ -740,9 +1152,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      final message = _friendlyErrorMessage(e, preferredField: 'email');
+
+      setState(() {
+        _emailErrorMessage = message.contains('Email kasir') ? message : null;
+        _serverStatusMessage =
+            _isConnectionError(e) ? 'Server toko belum bisa dijangkau.' : null;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(message),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -768,22 +1188,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
+                _ReliableEmailField(
                   controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
+                  focusNode: _emailFocusNode,
                   textInputAction: TextInputAction.done,
-                  autofillHints: const [AutofillHints.email],
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                  decoration: _inputDeco(
-                    label: 'Email',
-                    hint: 'nama@email.com',
-                    prefix: Icons.mail_outline_rounded,
-                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email wajib diisi';
                     if (!v.contains('@')) return 'Email tidak valid';
@@ -793,6 +1201,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     if (!_isLoading) _sendEmail();
                   },
                 ),
+                if (_emailErrorMessage != null)
+                  _FieldErrorText(_emailErrorMessage!),
+                if (_serverStatusMessage != null) ...[
+                  const SizedBox(height: 10),
+                  _ServerStatusNotice(_serverStatusMessage!),
+                ],
                 const SizedBox(height: 18),
                 _PrimaryButton(
                   label: 'Kirim kode',
@@ -836,9 +1250,19 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
+  bool _isResending = false;
+  int _resendSeconds = 60;
+  Timer? _resendTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startResendCooldown(notify: false);
+  }
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     for (final controller in _otpCtrls) {
       controller.dispose();
     }
@@ -849,6 +1273,76 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   String get _otpCode => _otpCtrls.map((c) => c.text).join();
+
+  void _startResendCooldown({bool notify = true}) {
+    _resendTimer?.cancel();
+    if (notify && mounted) {
+      setState(() => _resendSeconds = 60);
+    } else {
+      _resendSeconds = 60;
+    }
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_resendSeconds <= 1) {
+        timer.cancel();
+        setState(() => _resendSeconds = 0);
+        return;
+      }
+
+      setState(() => _resendSeconds -= 1);
+    });
+  }
+
+  void _clearOtp() {
+    for (final controller in _otpCtrls) {
+      controller.clear();
+    }
+
+    if (_focusNodes.isNotEmpty) {
+      _focusNodes.first.requestFocus();
+      _showSoftKeyboard();
+    }
+  }
+
+  Future<void> _resendOtp() async {
+    if (_resendSeconds > 0 || _isResending) return;
+
+    setState(() => _isResending = true);
+
+    try {
+      await ApiService.forgotPassword(widget.email);
+
+      if (!mounted) return;
+
+      _clearOtp();
+      _startResendCooldown();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kode OTP baru sudah dikirim ke email kasir.'),
+          backgroundColor: AppTheme.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyErrorMessage(e, preferredField: 'email')),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isResending = false);
+    }
+  }
 
   Future<void> _verify() async {
     if (_otpCode.length < 6) {
@@ -883,7 +1377,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(_friendlyErrorMessage(e, preferredField: 'otp')),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -900,7 +1394,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         children: [
           _BrandHeader(
             headline: 'Cek kotak masukmu',
-            subtitle: 'Kode OTP sudah dikirim ke ${widget.email}.',
+            subtitle:
+                'Kode OTP sudah dikirim ke ${widget.email}. Kode berlaku 5 menit.',
           ),
           const SizedBox(height: 24),
           LayoutBuilder(
@@ -971,6 +1466,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             isLoading: _isLoading,
             onPressed: _isLoading ? null : _verify,
           ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed:
+                (_resendSeconds == 0 && !_isResending) ? _resendOtp : null,
+            child: Text(
+              _isResending
+                  ? 'Mengirim ulang kode...'
+                  : _resendSeconds > 0
+                      ? 'Kirim ulang kode dalam $_resendSeconds detik'
+                      : 'Kirim ulang kode',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: (_resendSeconds == 0 && !_isResending)
+                    ? const Color(0xFFD94D83)
+                    : const Color(0xFFB9859B),
+                letterSpacing: 0,
+              ),
+            ),
+          ),
           const SizedBox(height: 10),
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1008,6 +1524,8 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  final _passFocusNode = FocusNode();
+  final _confirmFocusNode = FocusNode();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePass = true;
   bool _obscureConfirm = true;
@@ -1019,6 +1537,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   void dispose() {
     _hidePassTimer?.cancel();
     _hideConfirmTimer?.cancel();
+    _passFocusNode.dispose();
+    _confirmFocusNode.dispose();
     _passCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -1066,13 +1586,52 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kata sandi baru berhasil disimpan.'),
-          backgroundColor: AppTheme.success,
-          behavior: SnackBarBehavior.floating,
-        ),
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            title: const Text(
+              'Kata sandi berhasil diubah',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF4B1528),
+                letterSpacing: 0,
+              ),
+            ),
+            content: const Text(
+              'Silakan masuk dengan kata sandi baru.',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                height: 1.45,
+                color: Color(0xFF9F6079),
+                letterSpacing: 0,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text(
+                  'Mengerti',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFD94D83),
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       );
+
+      if (!mounted) return;
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -1084,7 +1643,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(_friendlyErrorMessage(e, preferredField: 'password')),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1109,71 +1668,37 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
+                _NoPeekPasswordField(
                   controller: _passCtrl,
-                  obscureText: _obscurePass,
+                  focusNode: _passFocusNode,
+                  isObscured: _obscurePass,
+                  onToggleVisibility: _toggleNewPasswordVisibility,
+                  label: 'Kata sandi baru',
+                  hint: 'Minimal 8 karakter',
+                  prefix: Icons.lock_outline_rounded,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                  decoration: _inputDeco(
-                    label: 'Kata sandi baru',
-                    hint: 'Minimal 6 karakter',
-                    prefix: Icons.lock_outline_rounded,
-                    suffix: IconButton(
-                      tooltip: _obscurePass
-                          ? 'Tampilkan kata sandi'
-                          : 'Sembunyikan kata sandi',
-                      icon: Icon(
-                        _obscurePass
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: const Color(0xFFD94D83),
-                        size: 20,
-                      ),
-                      onPressed: _toggleNewPasswordVisibility,
-                    ),
-                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Kata sandi wajib diisi';
-                    if (v.length < 6) return 'Minimal 6 karakter';
+                    if (v.length < 8) return 'Minimal 8 karakter';
                     return null;
+                  },
+                  onFieldSubmitted: (_) {
+                    _confirmFocusNode.requestFocus();
+                    _showSoftKeyboard();
                   },
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
+                _NoPeekPasswordField(
                   controller: _confirmCtrl,
-                  obscureText: _obscureConfirm,
+                  focusNode: _confirmFocusNode,
+                  isObscured: _obscureConfirm,
+                  onToggleVisibility: _toggleConfirmPasswordVisibility,
+                  label: 'Konfirmasi kata sandi',
+                  hint: 'Ulangi kata sandi baru',
+                  prefix: Icons.verified_user_outlined,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.newPassword],
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                  decoration: _inputDeco(
-                    label: 'Konfirmasi kata sandi',
-                    hint: 'Ulangi kata sandi baru',
-                    prefix: Icons.verified_user_outlined,
-                    suffix: IconButton(
-                      tooltip: _obscureConfirm
-                          ? 'Tampilkan kata sandi'
-                          : 'Sembunyikan kata sandi',
-                      icon: Icon(
-                        _obscureConfirm
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: const Color(0xFFD94D83),
-                        size: 20,
-                      ),
-                      onPressed: _toggleConfirmPasswordVisibility,
-                    ),
-                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Konfirmasi wajib diisi';
                     if (v != _passCtrl.text) return 'Kata sandi belum sama';
