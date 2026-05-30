@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,33 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/florashop_logo.dart';
 import 'main_navigation.dart';
+
+const MethodChannel _securityChannel = MethodChannel('florashop/security');
+int _secureAuthScreenDepth = 0;
+
+Future<void> _setSecureScreen(bool enabled) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+
+  try {
+    await _securityChannel.invokeMethod<void>('setSecureScreen', enabled);
+  } catch (_) {
+    // Desktop/web/tests can safely ignore this Android-only privacy guard.
+  }
+}
+
+void _enterSecureAuthScreen() {
+  _secureAuthScreenDepth += 1;
+  if (_secureAuthScreenDepth == 1) {
+    unawaited(_setSecureScreen(true));
+  }
+}
+
+void _leaveSecureAuthScreen() {
+  _secureAuthScreenDepth = math.max(0, _secureAuthScreenDepth - 1).toInt();
+  if (_secureAuthScreenDepth == 0) {
+    unawaited(_setSecureScreen(false));
+  }
+}
 
 void _showSoftKeyboard() {
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -105,6 +133,7 @@ class _NoPeekPasswordField extends StatefulWidget {
   final String hint;
   final IconData prefix;
   final TextInputAction textInputAction;
+  final bool enabled;
   final Iterable<String>? autofillHints;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onFieldSubmitted;
@@ -117,6 +146,7 @@ class _NoPeekPasswordField extends StatefulWidget {
     required this.hint,
     required this.prefix,
     required this.textInputAction,
+    this.enabled = true,
     this.focusNode,
     this.autofillHints,
     this.validator,
@@ -180,6 +210,7 @@ class _NoPeekPasswordFieldState extends State<_NoPeekPasswordField> {
     }
 
     return TextFormField(
+      enabled: widget.enabled,
       controller: widget.isObscured ? _maskController : widget.controller,
       focusNode: widget.focusNode,
       keyboardType: TextInputType.visiblePassword,
@@ -191,7 +222,7 @@ class _NoPeekPasswordFieldState extends State<_NoPeekPasswordField> {
       smartQuotesType: SmartQuotesType.disabled,
       autofillHints: widget.autofillHints,
       inputFormatters: widget.isObscured ? [_formatter] : const [],
-      onTap: _showSoftKeyboard,
+      onTap: widget.enabled ? _showSoftKeyboard : null,
       style: const TextStyle(
         fontFamily: 'Poppins',
         fontSize: 14,
@@ -213,7 +244,7 @@ class _NoPeekPasswordFieldState extends State<_NoPeekPasswordField> {
             color: const Color(0xFFD94D83),
             size: 20,
           ),
-          onPressed: widget.onToggleVisibility,
+          onPressed: widget.enabled ? widget.onToggleVisibility : null,
         ),
       ),
       validator: (_) => widget.validator?.call(widget.controller.text),
@@ -226,6 +257,8 @@ class _ReliableEmailField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final TextInputAction textInputAction;
+  final bool enabled;
+  final Iterable<String>? autofillHints;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onFieldSubmitted;
 
@@ -233,11 +266,15 @@ class _ReliableEmailField extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.textInputAction,
+    this.enabled = true,
+    this.autofillHints,
     this.validator,
     this.onFieldSubmitted,
   });
 
   void _focusAndShowKeyboard() {
+    if (!enabled) return;
+
     focusNode.requestFocus();
     _showSoftKeyboard();
   }
@@ -248,6 +285,7 @@ class _ReliableEmailField extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => _focusAndShowKeyboard(),
       child: TextFormField(
+        enabled: enabled,
         controller: controller,
         focusNode: focusNode,
         keyboardType: TextInputType.visiblePassword,
@@ -258,6 +296,7 @@ class _ReliableEmailField extends StatelessWidget {
         smartDashesType: SmartDashesType.disabled,
         smartQuotesType: SmartQuotesType.disabled,
         textCapitalization: TextCapitalization.none,
+        autofillHints: autofillHints,
         onTap: _focusAndShowKeyboard,
         style: const TextStyle(
           fontFamily: 'Poppins',
@@ -301,6 +340,14 @@ bool _isConnectionError(Object error) {
           error.statusCode >= 500);
 }
 
+bool _isRateLimitError(Object error) {
+  return error is ApiException && error.statusCode == 429;
+}
+
+String _rateLimitNoticeText(Object error) {
+  return 'Terlalu banyak percobaan. Coba lagi sebentar.';
+}
+
 String _friendlyErrorMessage(Object error, {String? preferredField}) {
   if (error is UnauthorizedException) {
     return 'Email atau kata sandi belum sesuai.';
@@ -320,11 +367,45 @@ String _friendlyErrorMessage(Object error, {String? preferredField}) {
     return _connectionErrorText;
   }
 
+  if (_isRateLimitError(error)) {
+    return _rateLimitNoticeText(error);
+  }
+
   if (error is ApiException) {
     return error.message;
   }
 
   return 'Permintaan belum berhasil. Silakan coba lagi.';
+}
+
+String _maskEmail(String email) {
+  final normalizedEmail = ApiService.normalizeEmail(email);
+  final parts = normalizedEmail.split('@');
+
+  if (parts.length != 2 || parts.first.isEmpty || parts.last.isEmpty) {
+    return normalizedEmail;
+  }
+
+  final name = parts.first;
+  final domain = parts.last;
+
+  if (name.length <= 2) {
+    return '${name[0]}****@$domain';
+  }
+
+  final prefix = name.substring(0, math.min(2, name.length).toInt());
+  final suffix = name.length > 4 ? name.substring(name.length - 2) : '';
+
+  return '$prefix****$suffix@$domain';
+}
+
+String _formatCountdown(int seconds) {
+  final safeSeconds = math.max(0, seconds).toInt();
+  final minutes = safeSeconds ~/ 60;
+  final remainingSeconds = safeSeconds % 60;
+
+  return '${minutes.toString().padLeft(2, '0')}:'
+      '${remainingSeconds.toString().padLeft(2, '0')}';
 }
 
 class _FieldHelperText extends StatelessWidget {
@@ -406,6 +487,47 @@ class _ServerStatusNotice extends StatelessWidget {
                 height: 1.35,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF9A3412),
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WarningStatusNotice extends StatelessWidget {
+  final String text;
+
+  const _WarningStatusNotice(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF8B7D1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.lock_clock_rounded,
+            size: 17,
+            color: Color(0xFFD94D83),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11.5,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF8F2753),
                 letterSpacing: 0,
               ),
             ),
@@ -863,11 +985,13 @@ class _PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+  final String? loadingLabel;
 
   const _PrimaryButton({
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.loadingLabel,
   });
 
   @override
@@ -915,13 +1039,25 @@ class _PrimaryButton extends StatelessWidget {
             ),
           ),
           child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.2,
-                  ),
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.1,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      loadingLabel ?? label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 )
               : Text(label),
         ),
@@ -944,16 +1080,39 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordFocusNode = FocusNode();
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
+  int _failedLoginAttempts = 0;
+  int _loginCooldownSeconds = 0;
+  int _connectionFailureCount = 0;
+  bool _hasShownConnectionHelp = false;
   Timer? _hidePasswordTimer;
+  Timer? _loginCooldownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _enterSecureAuthScreen();
+    _emailCtrl.addListener(_refreshLoginButtonState);
+    _passCtrl.addListener(_refreshLoginButtonState);
+    _loadLastLoginEmail();
+  }
 
   @override
   void dispose() {
     _hidePasswordTimer?.cancel();
+    _loginCooldownTimer?.cancel();
+    _emailCtrl.removeListener(_refreshLoginButtonState);
+    _passCtrl.removeListener(_refreshLoginButtonState);
     _emailFocusNode.dispose();
     _passwordFocusNode.dispose();
+    _passCtrl.clear();
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _leaveSecureAuthScreen();
     super.dispose();
+  }
+
+  void _refreshLoginButtonState() {
+    if (mounted) setState(() {});
   }
 
   void _togglePasswordVisibility() {
@@ -970,16 +1129,163 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  Future<void> _loadLastLoginEmail() async {
+    final lastEmail = await ApiService.getLastLoginEmail();
+    if (!mounted || lastEmail == null || lastEmail.isEmpty) return;
+    if (_emailCtrl.text.isNotEmpty) return;
+
+    setState(() {
+      _emailCtrl.text = lastEmail;
+    });
+  }
+
+  bool get _isLoginCoolingDown => _loginCooldownSeconds > 0;
+
+  bool get _isLoginFormReady {
+    final email = ApiService.normalizeEmail(_emailCtrl.text);
+    return email.contains('@') &&
+        email.contains('.') &&
+        _passCtrl.text.length >= 8;
+  }
+
+  String get _loginCooldownMessage =>
+      'Terlalu banyak percobaan. Coba lagi dalam $_loginCooldownSeconds detik.';
+
+  String _normalizeEmailInput() {
+    final normalizedEmail = ApiService.normalizeEmail(_emailCtrl.text);
+
+    if (_emailCtrl.text != normalizedEmail) {
+      _emailCtrl.value = TextEditingValue(
+        text: normalizedEmail,
+        selection: TextSelection.collapsed(offset: normalizedEmail.length),
+      );
+    }
+
+    return normalizedEmail;
+  }
+
+  void _startLoginCooldown() {
+    _loginCooldownTimer?.cancel();
+    setState(() => _loginCooldownSeconds = 30);
+
+    _loginCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_loginCooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() => _loginCooldownSeconds = 0);
+        return;
+      }
+
+      setState(() => _loginCooldownSeconds -= 1);
+    });
+  }
+
+  void _recordFailedLogin({required bool causedByServer}) {
+    if (causedByServer) return;
+
+    _failedLoginAttempts += 1;
+    if (_failedLoginAttempts >= 5) {
+      _failedLoginAttempts = 0;
+      _startLoginCooldown();
+    }
+  }
+
+  void _resetLoginAttempts() {
+    _failedLoginAttempts = 0;
+    _connectionFailureCount = 0;
+    _hasShownConnectionHelp = false;
+    _loginCooldownTimer?.cancel();
+
+    if (_loginCooldownSeconds > 0) {
+      setState(() => _loginCooldownSeconds = 0);
+    }
+  }
+
+  void _clearLoginPassword({bool keepFocus = false}) {
+    if (!mounted) return;
+
+    _hidePasswordTimer?.cancel();
+    setState(() {
+      _obscure = true;
+      _passCtrl.clear();
+    });
+
+    if (keepFocus) {
+      _passwordFocusNode.requestFocus();
+      _showSoftKeyboard();
+    }
+  }
+
+  void _handleConnectionFailure() {
+    _connectionFailureCount += 1;
+
+    if (_connectionFailureCount < 3 || _hasShownConnectionHelp) return;
+    _hasShownConnectionHelp = true;
+
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Text(
+            'Server belum bisa dijangkau',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF4B1528),
+              letterSpacing: 0,
+            ),
+          ),
+          content: const Text(
+            'Pastikan internet aktif atau minta admin membuka web admin/server toko.',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 13,
+              height: 1.45,
+              color: Color(0xFF9F6079),
+              letterSpacing: 0,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                'Mengerti',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFD94D83),
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _login() async {
+    if (_isLoginCoolingDown) return;
+
+    final normalizedEmail = _normalizeEmailInput();
     if (!_formKey.currentState!.validate()) return;
 
-    final success = await context
-        .read<AuthProvider>()
-        .login(_emailCtrl.text.trim(), _passCtrl.text);
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.login(normalizedEmail, _passCtrl.text);
 
     if (!mounted) return;
 
     if (success) {
+      _resetLoginAttempts();
+      TextInput.finishAutofillContext();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Berhasil masuk ke FLORASHOP.'),
@@ -994,10 +1300,24 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const MainNavigation()),
       );
     } else {
+      final latestAuthProvider = context.read<AuthProvider>();
+      final causedByServer = latestAuthProvider.serverStatusMessage != null;
+      _recordFailedLogin(
+        causedByServer:
+            causedByServer || latestAuthProvider.rateLimitMessage != null,
+      );
+      _clearLoginPassword(keepFocus: true);
+
+      if (causedByServer) {
+        _handleConnectionFailure();
+      } else {
+        _connectionFailureCount = 0;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.read<AuthProvider>().errorMessage ?? 'Masuk belum berhasil',
+            latestAuthProvider.errorMessage ?? 'Masuk belum berhasil',
           ),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
@@ -1010,6 +1330,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final isLoading = authProvider.status == AuthStatus.loading;
+    final isInputLocked = isLoading || _isLoginCoolingDown;
+    final canSubmitLogin = !isInputLocked && _isLoginFormReady;
 
     return _FlowerBackground(
       child: _AuthCard(
@@ -1022,83 +1344,102 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 18),
           const _MoodStrip(),
           const SizedBox(height: 24),
-          Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ReliableEmailField(
-                  controller: _emailCtrl,
-                  focusNode: _emailFocusNode,
-                  textInputAction: TextInputAction.next,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Email wajib diisi';
-                    if (!v.contains('@')) return 'Email tidak valid';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) {
-                    _passwordFocusNode.requestFocus();
-                    _showSoftKeyboard();
-                  },
-                ),
-                const _FieldHelperText(
-                  'Gunakan email kasir yang terdaftar di web admin.',
-                ),
-                const SizedBox(height: 14),
-                _NoPeekPasswordField(
-                  controller: _passCtrl,
-                  focusNode: _passwordFocusNode,
-                  isObscured: _obscure,
-                  onToggleVisibility: _togglePasswordVisibility,
-                  label: 'Kata sandi',
-                  hint: 'Minimal 8 karakter',
-                  prefix: Icons.lock_outline_rounded,
-                  textInputAction: TextInputAction.done,
-                  autofillHints: const [AutofillHints.password],
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Kata sandi wajib diisi';
-                    if (v.length < 8) return 'Minimal 8 karakter';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) {
-                    if (!isLoading) _login();
-                  },
-                ),
-                if (authProvider.serverStatusMessage != null) ...[
-                  const SizedBox(height: 10),
-                  _ServerStatusNotice(authProvider.serverStatusMessage!),
-                ],
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ForgotPasswordScreen(),
+          AutofillGroup(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ReliableEmailField(
+                    controller: _emailCtrl,
+                    focusNode: _emailFocusNode,
+                    textInputAction: TextInputAction.next,
+                    enabled: !isInputLocked,
+                    autofillHints: const [AutofillHints.email],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Email wajib diisi';
+                      if (!v.contains('@')) return 'Email tidak valid';
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      _passwordFocusNode.requestFocus();
+                      _showSoftKeyboard();
+                    },
+                  ),
+                  const _FieldHelperText(
+                    'Gunakan email kasir yang terdaftar di web admin.',
+                  ),
+                  const SizedBox(height: 14),
+                  _NoPeekPasswordField(
+                    controller: _passCtrl,
+                    focusNode: _passwordFocusNode,
+                    isObscured: _obscure,
+                    onToggleVisibility: _togglePasswordVisibility,
+                    enabled: !isInputLocked,
+                    label: 'Kata sandi',
+                    hint: 'Minimal 8 karakter',
+                    prefix: Icons.lock_outline_rounded,
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.password],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Kata sandi wajib diisi';
+                      }
+                      if (v.length < 8) return 'Minimal 8 karakter';
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      if (!isInputLocked) _login();
+                    },
+                  ),
+                  if (authProvider.serverStatusMessage != null) ...[
+                    const SizedBox(height: 10),
+                    _ServerStatusNotice(authProvider.serverStatusMessage!),
+                  ],
+                  if (_isLoginCoolingDown) ...[
+                    const SizedBox(height: 10),
+                    _WarningStatusNotice(_loginCooldownMessage),
+                  ],
+                  if (authProvider.rateLimitMessage != null) ...[
+                    const SizedBox(height: 10),
+                    _WarningStatusNotice(authProvider.rateLimitMessage!),
+                  ],
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        _clearLoginPassword();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFD94D83),
+                        padding: const EdgeInsets.fromLTRB(8, 10, 0, 10),
                       ),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFD94D83),
-                      padding: const EdgeInsets.fromLTRB(8, 10, 0, 10),
-                    ),
-                    child: const Text(
-                      'Lupa kata sandi?',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
+                      child: const Text(
+                        'Lupa kata sandi?',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                _PrimaryButton(
-                  label: 'Masuk',
-                  isLoading: isLoading,
-                  onPressed: isLoading ? null : _login,
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  _PrimaryButton(
+                    label: 'Masuk',
+                    isLoading: isLoading,
+                    loadingLabel: 'Memeriksa akun...',
+                    onPressed: canSubmitLogin ? _login : null,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1121,32 +1462,66 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _isLoading = false;
   String? _emailErrorMessage;
   String? _serverStatusMessage;
+  String? _rateLimitMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _enterSecureAuthScreen();
+    _loadLastLoginEmail();
+  }
 
   @override
   void dispose() {
     _emailFocusNode.dispose();
     _emailCtrl.dispose();
+    _leaveSecureAuthScreen();
     super.dispose();
   }
 
+  Future<void> _loadLastLoginEmail() async {
+    final lastEmail = await ApiService.getLastLoginEmail();
+    if (!mounted || lastEmail == null || lastEmail.isEmpty) return;
+    if (_emailCtrl.text.isNotEmpty) return;
+
+    setState(() {
+      _emailCtrl.text = lastEmail;
+    });
+  }
+
+  String _normalizeEmailInput() {
+    final normalizedEmail = ApiService.normalizeEmail(_emailCtrl.text);
+
+    if (_emailCtrl.text != normalizedEmail) {
+      _emailCtrl.value = TextEditingValue(
+        text: normalizedEmail,
+        selection: TextSelection.collapsed(offset: normalizedEmail.length),
+      );
+    }
+
+    return normalizedEmail;
+  }
+
   Future<void> _sendEmail() async {
+    final normalizedEmail = _normalizeEmailInput();
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
       _emailErrorMessage = null;
       _serverStatusMessage = null;
+      _rateLimitMessage = null;
     });
 
     try {
-      await ApiService.forgotPassword(_emailCtrl.text.trim());
+      await ApiService.forgotPassword(normalizedEmail);
 
       if (!mounted) return;
 
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => OtpVerificationScreen(email: _emailCtrl.text.trim()),
+          builder: (_) => OtpVerificationScreen(email: normalizedEmail),
         ),
       );
     } catch (e) {
@@ -1158,6 +1533,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _emailErrorMessage = message.contains('Email kasir') ? message : null;
         _serverStatusMessage =
             _isConnectionError(e) ? 'Server toko belum bisa dijangkau.' : null;
+        _rateLimitMessage = _isRateLimitError(e) ? message : null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1183,51 +1559,60 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 'Masukkan email akunmu, lalu cek kode verifikasi dari FLORASHOP.',
           ),
           const SizedBox(height: 24),
-          Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ReliableEmailField(
-                  controller: _emailCtrl,
-                  focusNode: _emailFocusNode,
-                  textInputAction: TextInputAction.done,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Email wajib diisi';
-                    if (!v.contains('@')) return 'Email tidak valid';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) {
-                    if (!_isLoading) _sendEmail();
-                  },
-                ),
-                if (_emailErrorMessage != null)
-                  _FieldErrorText(_emailErrorMessage!),
-                if (_serverStatusMessage != null) ...[
+          AutofillGroup(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ReliableEmailField(
+                    controller: _emailCtrl,
+                    focusNode: _emailFocusNode,
+                    textInputAction: TextInputAction.done,
+                    enabled: !_isLoading,
+                    autofillHints: const [AutofillHints.email],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Email wajib diisi';
+                      if (!v.contains('@')) return 'Email tidak valid';
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      if (!_isLoading) _sendEmail();
+                    },
+                  ),
+                  if (_emailErrorMessage != null)
+                    _FieldErrorText(_emailErrorMessage!),
+                  if (_serverStatusMessage != null) ...[
+                    const SizedBox(height: 10),
+                    _ServerStatusNotice(_serverStatusMessage!),
+                  ],
+                  if (_rateLimitMessage != null) ...[
+                    const SizedBox(height: 10),
+                    _WarningStatusNotice(_rateLimitMessage!),
+                  ],
+                  const SizedBox(height: 18),
+                  _PrimaryButton(
+                    label: 'Kirim kode',
+                    isLoading: _isLoading,
+                    loadingLabel: 'Mengirim kode...',
+                    onPressed: _isLoading ? null : _sendEmail,
+                  ),
                   const SizedBox(height: 10),
-                  _ServerStatusNotice(_serverStatusMessage!),
-                ],
-                const SizedBox(height: 18),
-                _PrimaryButton(
-                  label: 'Kirim kode',
-                  isLoading: _isLoading,
-                  onPressed: _isLoading ? null : _sendEmail,
-                ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Kembali ke halaman masuk',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFFD94D83),
-                      letterSpacing: 0,
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Kembali ke halaman masuk',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFD94D83),
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -1251,28 +1636,64 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
   bool _isResending = false;
+  bool _isFillingOtp = false;
   int _resendSeconds = 60;
+  int _otpExpirySeconds = 300;
   Timer? _resendTimer;
+  Timer? _otpExpiryTimer;
+  String? _rateLimitMessage;
 
   @override
   void initState() {
     super.initState();
+    _enterSecureAuthScreen();
     _startResendCooldown(notify: false);
+    _startOtpExpiryTimer(notify: false);
   }
 
   @override
   void dispose() {
     _resendTimer?.cancel();
+    _otpExpiryTimer?.cancel();
     for (final controller in _otpCtrls) {
       controller.dispose();
     }
     for (final node in _focusNodes) {
       node.dispose();
     }
+    _leaveSecureAuthScreen();
     super.dispose();
   }
 
   String get _otpCode => _otpCtrls.map((c) => c.text).join();
+  bool get _isOtpExpired => _otpExpirySeconds <= 0;
+  String get _maskedEmail => _maskEmail(widget.email);
+
+  void _fillOtpFrom(String value, {required int startIndex}) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return;
+
+    _isFillingOtp = true;
+    for (var offset = 0; offset < digits.length; offset += 1) {
+      final targetIndex = startIndex + offset;
+      if (targetIndex >= _otpCtrls.length) break;
+
+      _otpCtrls[targetIndex].value = TextEditingValue(
+        text: digits[offset],
+        selection: const TextSelection.collapsed(offset: 1),
+      );
+    }
+    _isFillingOtp = false;
+
+    if (_otpCode.length == 6) {
+      FocusScope.of(context).unfocus();
+      return;
+    }
+
+    final nextIndex =
+        math.min(startIndex + digits.length, _focusNodes.length - 1).toInt();
+    _focusNodes[nextIndex].requestFocus();
+  }
 
   void _startResendCooldown({bool notify = true}) {
     _resendTimer?.cancel();
@@ -1298,6 +1719,30 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
   }
 
+  void _startOtpExpiryTimer({bool notify = true}) {
+    _otpExpiryTimer?.cancel();
+    if (notify && mounted) {
+      setState(() => _otpExpirySeconds = 300);
+    } else {
+      _otpExpirySeconds = 300;
+    }
+
+    _otpExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_otpExpirySeconds <= 1) {
+        timer.cancel();
+        setState(() => _otpExpirySeconds = 0);
+        return;
+      }
+
+      setState(() => _otpExpirySeconds -= 1);
+    });
+  }
+
   void _clearOtp() {
     for (final controller in _otpCtrls) {
       controller.clear();
@@ -1312,7 +1757,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Future<void> _resendOtp() async {
     if (_resendSeconds > 0 || _isResending) return;
 
-    setState(() => _isResending = true);
+    setState(() {
+      _isResending = true;
+      _rateLimitMessage = null;
+    });
 
     try {
       await ApiService.forgotPassword(widget.email);
@@ -1321,6 +1769,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       _clearOtp();
       _startResendCooldown();
+      _startOtpExpiryTimer();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1332,9 +1781,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      final message = _friendlyErrorMessage(e, preferredField: 'email');
+      setState(() {
+        _rateLimitMessage = _isRateLimitError(e) ? message : null;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_friendlyErrorMessage(e, preferredField: 'email')),
+          content: Text(message),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1345,6 +1799,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _verify() async {
+    if (_isOtpExpired) {
+      setState(() {
+        _rateLimitMessage = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kode OTP sudah kedaluwarsa. Kirim ulang kode baru.'),
+          backgroundColor: AppTheme.warning,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     if (_otpCode.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1356,7 +1825,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _rateLimitMessage = null;
+    });
 
     try {
       await ApiService.verifyOtp(widget.email, _otpCode);
@@ -1375,9 +1847,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      final message = _friendlyErrorMessage(e, preferredField: 'otp');
+      setState(() {
+        _rateLimitMessage = _isRateLimitError(e) ? message : null;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_friendlyErrorMessage(e, preferredField: 'otp')),
+          content: Text(message),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1389,13 +1866,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final otpInputEnabled = !_isLoading && !_isResending && !_isOtpExpired;
+
     return _FlowerBackground(
       child: _AuthCard(
         children: [
           _BrandHeader(
             headline: 'Cek kotak masukmu',
-            subtitle:
-                'Kode OTP sudah dikirim ke ${widget.email}. Kode berlaku 5 menit.',
+            subtitle: _isOtpExpired
+                ? 'Kode untuk $_maskedEmail sudah kedaluwarsa. Kirim ulang kode baru.'
+                : 'Kode dikirim ke $_maskedEmail. Kode berlaku ${_formatCountdown(_otpExpirySeconds)}.',
           ),
           const SizedBox(height: 24),
           LayoutBuilder(
@@ -1406,54 +1886,75 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(6, (i) {
-                  return SizedBox(
-                    width: boxWidth.toDouble(),
-                    height: 54,
-                    child: TextFormField(
-                      controller: _otpCtrls[i],
-                      focusNode: _focusNodes[i],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      maxLength: 1,
-                      style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Poppins',
-                        color: Color(0xFF5D1734),
-                        letterSpacing: 0,
+                  return Semantics(
+                    label: 'Digit ${i + 1} kode OTP',
+                    textField: true,
+                    child: SizedBox(
+                      width: boxWidth.toDouble(),
+                      height: 54,
+                      child: TextFormField(
+                        enabled: otpInputEnabled,
+                        controller: _otpCtrls[i],
+                        focusNode: _focusNodes[i],
+                        keyboardType: TextInputType.number,
+                        textInputAction: i == 5
+                            ? TextInputAction.done
+                            : TextInputAction.next,
+                        textAlign: TextAlign.center,
+                        maxLength: 6,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        autofillHints:
+                            i == 0 ? const [AutofillHints.oneTimeCode] : null,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Poppins',
+                          color: Color(0xFF5D1734),
+                          letterSpacing: 0,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.78),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFF4BDD3),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFF4BDD3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD94D83),
+                              width: 1.6,
+                            ),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (value) {
+                          if (_isFillingOtp) return;
+
+                          if (value.length > 1) {
+                            _fillOtpFrom(value, startIndex: i);
+                            return;
+                          }
+
+                          if (value.isNotEmpty && i < 5) {
+                            _focusNodes[i + 1].requestFocus();
+                          } else if (value.isEmpty && i > 0) {
+                            _focusNodes[i - 1].requestFocus();
+                          }
+                        },
                       ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.78),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFF4BDD3),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFF4BDD3),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFD94D83),
-                            width: 1.6,
-                          ),
-                        ),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      onChanged: (value) {
-                        if (value.isNotEmpty && i < 5) {
-                          _focusNodes[i + 1].requestFocus();
-                        } else if (value.isEmpty && i > 0) {
-                          _focusNodes[i - 1].requestFocus();
-                        }
-                      },
                     ),
                   );
                 }),
@@ -1461,10 +1962,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             },
           ),
           const SizedBox(height: 20),
+          if (_isOtpExpired) ...[
+            const _WarningStatusNotice(
+              'Kode OTP sudah kedaluwarsa. Kirim ulang kode baru.',
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_rateLimitMessage != null) ...[
+            _WarningStatusNotice(_rateLimitMessage!),
+            const SizedBox(height: 12),
+          ],
           _PrimaryButton(
             label: 'Verifikasi',
             isLoading: _isLoading,
-            onPressed: _isLoading ? null : _verify,
+            loadingLabel: 'Memeriksa kode...',
+            onPressed: otpInputEnabled ? _verify : null,
           ),
           const SizedBox(height: 8),
           TextButton(
@@ -1530,8 +2042,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscurePass = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
+  String? _rateLimitMessage;
   Timer? _hidePassTimer;
   Timer? _hideConfirmTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _enterSecureAuthScreen();
+  }
 
   @override
   void dispose() {
@@ -1539,8 +2058,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     _hideConfirmTimer?.cancel();
     _passFocusNode.dispose();
     _confirmFocusNode.dispose();
+    _passCtrl.clear();
+    _confirmCtrl.clear();
     _passCtrl.dispose();
     _confirmCtrl.dispose();
+    _leaveSecureAuthScreen();
     super.dispose();
   }
 
@@ -1572,10 +2094,31 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
   }
 
+  void _clearResetPasswords({bool focusFirst = true}) {
+    if (!mounted) return;
+
+    _hidePassTimer?.cancel();
+    _hideConfirmTimer?.cancel();
+    setState(() {
+      _obscurePass = true;
+      _obscureConfirm = true;
+      _passCtrl.clear();
+      _confirmCtrl.clear();
+    });
+
+    if (focusFirst) {
+      _passFocusNode.requestFocus();
+      _showSoftKeyboard();
+    }
+  }
+
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _rateLimitMessage = null;
+    });
 
     try {
       await ApiService.resetPassword(
@@ -1585,6 +2128,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
 
       if (!mounted) return;
+
+      TextInput.finishAutofillContext();
+      _clearResetPasswords(focusFirst: false);
 
       await showDialog<void>(
         context: context,
@@ -1641,9 +2187,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      final message = _friendlyErrorMessage(e, preferredField: 'password');
+      setState(() {
+        _rateLimitMessage = _isRateLimitError(e) ? message : null;
+      });
+      _clearResetPasswords();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_friendlyErrorMessage(e, preferredField: 'password')),
+          content: Text(message),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1663,58 +2215,71 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             subtitle: 'Buat kata sandi yang aman untuk akun FLORASHOP kamu.',
           ),
           const SizedBox(height: 24),
-          Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _NoPeekPasswordField(
-                  controller: _passCtrl,
-                  focusNode: _passFocusNode,
-                  isObscured: _obscurePass,
-                  onToggleVisibility: _toggleNewPasswordVisibility,
-                  label: 'Kata sandi baru',
-                  hint: 'Minimal 8 karakter',
-                  prefix: Icons.lock_outline_rounded,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.newPassword],
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Kata sandi wajib diisi';
-                    if (v.length < 8) return 'Minimal 8 karakter';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) {
-                    _confirmFocusNode.requestFocus();
-                    _showSoftKeyboard();
-                  },
-                ),
-                const SizedBox(height: 14),
-                _NoPeekPasswordField(
-                  controller: _confirmCtrl,
-                  focusNode: _confirmFocusNode,
-                  isObscured: _obscureConfirm,
-                  onToggleVisibility: _toggleConfirmPasswordVisibility,
-                  label: 'Konfirmasi kata sandi',
-                  hint: 'Ulangi kata sandi baru',
-                  prefix: Icons.verified_user_outlined,
-                  textInputAction: TextInputAction.done,
-                  autofillHints: const [AutofillHints.newPassword],
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Konfirmasi wajib diisi';
-                    if (v != _passCtrl.text) return 'Kata sandi belum sama';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) {
-                    if (!_isLoading) _resetPassword();
-                  },
-                ),
-                const SizedBox(height: 20),
-                _PrimaryButton(
-                  label: 'Simpan kata sandi',
-                  isLoading: _isLoading,
-                  onPressed: _isLoading ? null : _resetPassword,
-                ),
-              ],
+          AutofillGroup(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _NoPeekPasswordField(
+                    controller: _passCtrl,
+                    focusNode: _passFocusNode,
+                    isObscured: _obscurePass,
+                    onToggleVisibility: _toggleNewPasswordVisibility,
+                    enabled: !_isLoading,
+                    label: 'Kata sandi baru',
+                    hint: 'Minimal 8 karakter',
+                    prefix: Icons.lock_outline_rounded,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.newPassword],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Kata sandi wajib diisi';
+                      }
+                      if (v.length < 8) return 'Minimal 8 karakter';
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      _confirmFocusNode.requestFocus();
+                      _showSoftKeyboard();
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  _NoPeekPasswordField(
+                    controller: _confirmCtrl,
+                    focusNode: _confirmFocusNode,
+                    isObscured: _obscureConfirm,
+                    onToggleVisibility: _toggleConfirmPasswordVisibility,
+                    enabled: !_isLoading,
+                    label: 'Konfirmasi kata sandi',
+                    hint: 'Ulangi kata sandi baru',
+                    prefix: Icons.verified_user_outlined,
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.newPassword],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Konfirmasi wajib diisi';
+                      }
+                      if (v != _passCtrl.text) return 'Kata sandi belum sama';
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      if (!_isLoading) _resetPassword();
+                    },
+                  ),
+                  if (_rateLimitMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _WarningStatusNotice(_rateLimitMessage!),
+                  ],
+                  const SizedBox(height: 20),
+                  _PrimaryButton(
+                    label: 'Simpan kata sandi',
+                    isLoading: _isLoading,
+                    loadingLabel: 'Menyimpan kata sandi...',
+                    onPressed: _isLoading ? null : _resetPassword,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
