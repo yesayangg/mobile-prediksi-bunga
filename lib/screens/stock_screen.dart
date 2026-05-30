@@ -41,7 +41,7 @@ class _StockScreenState extends State<StockScreen> {
         preferredSize: const Size.fromHeight(120),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFFC2185B),
+            color: AppTheme.primary,
             borderRadius: BorderRadius.vertical(
               bottom: Radius.circular(22),
             ),
@@ -113,8 +113,7 @@ class _StockScreenState extends State<StockScreen> {
                         _HeaderFilterChip(
                           label: 'Stok Kritis',
                           isSelected: stockProvider.isLowStockFilter,
-                          onTap: () =>
-                              stockProvider.toggleLowStockFilter(true),
+                          onTap: () => stockProvider.toggleLowStockFilter(true),
                         ),
                       ],
                     ),
@@ -171,8 +170,8 @@ class _StockScreenState extends State<StockScreen> {
                 const Spacer(),
                 if (stockProvider.lowStockCount > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppTheme.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -215,8 +214,7 @@ class _StockScreenState extends State<StockScreen> {
                         onRefresh: () =>
                             stockProvider.loadStocks(refresh: true),
                         child: ListView.builder(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                           itemCount: stockProvider.stocks.length,
                           itemBuilder: (_, i) {
                             final item = stockProvider.stocks[i];
@@ -425,9 +423,7 @@ class _HeaderFilterChip extends StatelessWidget {
               fontFamily: 'Poppins',
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: isSelected
-                  ? const Color(0xFFC2185B)
-                  : Colors.white60,
+              color: isSelected ? AppTheme.primary : Colors.white60,
             ),
           ),
         ),

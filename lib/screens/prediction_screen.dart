@@ -28,7 +28,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
         preferredSize: const Size.fromHeight(110),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFFC2185B),
+            color: AppTheme.primary,
             borderRadius: BorderRadius.vertical(
               bottom: Radius.circular(22),
             ),
@@ -173,13 +173,11 @@ class _PredictionScreenState extends State<PredictionScreen> {
                             ),
                           )
                         : ListView.builder(
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                             itemCount: pp.predictions.length,
                             itemBuilder: (_, i) {
                               final pred = pp.predictions[i];
-                              final pct =
-                                  (pred.confidence * 100).toInt();
+                              final pct = (pred.confidence * 100).toInt();
                               final cc = pred.confidence >= 0.8
                                   ? AppTheme.success
                                   : pred.confidence >= 0.6
@@ -187,19 +185,15 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                       : AppTheme.error;
 
                               return Container(
-                                margin:
-                                    const EdgeInsets.only(bottom: 10),
+                                margin: const EdgeInsets.only(bottom: 10),
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
                                   color: AppTheme.bgCard,
-                                  borderRadius:
-                                      BorderRadius.circular(14),
-                                  border:
-                                      Border.all(color: AppTheme.border),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: AppTheme.border),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
@@ -215,13 +209,10 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                           ),
                                         ),
                                         Container(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 3),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
                                           decoration: BoxDecoration(
-                                            color: cc.withValues(
-                                                alpha: 0.1),
+                                            color: cc.withValues(alpha: 0.1),
                                             borderRadius:
                                                 BorderRadius.circular(8),
                                           ),
@@ -241,8 +232,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                     Row(
                                       children: [
                                         const Icon(Icons.trending_up,
-                                            color: AppTheme.primary,
-                                            size: 16),
+                                            color: AppTheme.primary, size: 16),
                                         const SizedBox(width: 6),
                                         Text(
                                           'Prediksi: ${pred.predictedDemand.toStringAsFixed(0)} tangkai',
@@ -257,19 +247,16 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     ClipRRect(
-                                      borderRadius:
-                                          BorderRadius.circular(4),
+                                      borderRadius: BorderRadius.circular(4),
                                       child: LinearProgressIndicator(
                                         value: pred.confidence,
                                         backgroundColor: AppTheme.border,
                                         valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                cc),
+                                            AlwaysStoppedAnimation<Color>(cc),
                                         minHeight: 6,
                                       ),
                                     ),
-                                    if (pred
-                                        .recommendation.isNotEmpty) ...[
+                                    if (pred.recommendation.isNotEmpty) ...[
                                       const SizedBox(height: 10),
                                       Container(
                                         padding: const EdgeInsets.all(10),
@@ -282,8 +269,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            const Icon(
-                                                Icons.lightbulb_outline,
+                                            const Icon(Icons.lightbulb_outline,
                                                 size: 16,
                                                 color: AppTheme.warning),
                                             const SizedBox(width: 6),
@@ -292,8 +278,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
                                                 pred.recommendation,
                                                 style: const TextStyle(
                                                   fontSize: 12,
-                                                  color: AppTheme
-                                                      .textSecondary,
+                                                  color: AppTheme.textSecondary,
                                                   fontFamily: 'Poppins',
                                                 ),
                                               ),

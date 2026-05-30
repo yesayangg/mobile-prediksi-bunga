@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/florashop_logo.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -43,7 +44,6 @@ class ProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(dialogContext);
 
-
               await context.read<AuthProvider>().logout();
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
@@ -61,9 +61,9 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
-        ],   // <-- penutup actions
-      ),     // <-- penutup AlertDialog
-    );       // <-- penutup showDialog
+        ], // <-- penutup actions
+      ), // <-- penutup AlertDialog
+    ); // <-- penutup showDialog
   }
 
   @override
@@ -79,19 +79,7 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 32),
-            Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.storefront_outlined,
-                color: AppTheme.primary,
-                size: 40,
-              ),
-            ),
+            const FloraShopLogo(size: 88),
             const SizedBox(height: 12),
             Text(
               user?.name ?? 'Pengguna',
@@ -131,11 +119,13 @@ class ProfileScreen extends StatelessWidget {
             ),
             const Spacer(),
             const Text(
-              'Aplikasi Prediksi Penjualan Bunga',
+              'FLORASHOP',
               style: TextStyle(
                 fontSize: 11,
+                fontWeight: FontWeight.w800,
                 color: AppTheme.textSecondary,
                 fontFamily: 'Poppins',
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(height: 20),

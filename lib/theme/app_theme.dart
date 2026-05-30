@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color primary = Color(0xFFD4537E);
-  static const Color primaryLight = Color(0xFFED93B1);
-  static const Color primaryDark = Color(0xFF993556);
-  static const Color accent = Color(0xFFF4A261);
-  static const Color bgLight = Color(0xFFFFF5F8);
+  static const Color primary = Color(0xFFE21666);
+  static const Color primaryLight = Color(0xFFFF8DBA);
+  static const Color primaryDark = Color(0xFF5D1734);
+  static const Color accent = Color(0xFF7DBE89);
+  static const Color bgLight = Color(0xFFFFF7FB);
   static const Color bgCard = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFF4B1528);
-  static const Color textSecondary = Color(0xFF993556);
-  static const Color textHint = Color(0xFFD4A0B0);
-  static const Color border = Color(0xFFF4C0D1);
+  static const Color textSecondary = Color(0xFF9F6079);
+  static const Color textHint = Color(0xFFC793AA);
+  static const Color border = Color(0xFFF4BDD3);
   static const Color success = Color(0xFF40916C);
   static const Color warning = Color(0xFFFFB703);
   static const Color error = Color(0xFFE63946);
@@ -26,7 +26,7 @@ class AppTheme {
         ),
         scaffoldBackgroundColor: bgLight,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFD4537E),
+          backgroundColor: Color(0xFFE21666),
           elevation: 0,
           centerTitle: true,
           iconTheme: IconThemeData(color: Colors.white),
@@ -63,8 +63,8 @@ class AppTheme {
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: bgCard,
-          selectedItemColor: Color(0xFFD4537E),
-          unselectedItemColor: Color(0xFFD4A0B0),
+          selectedItemColor: Color(0xFFE21666),
+          unselectedItemColor: Color(0xFFC793AA),
           selectedLabelStyle: TextStyle(
             fontFamily: 'Poppins',
             fontSize: 11,

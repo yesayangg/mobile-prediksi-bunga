@@ -1,4 +1,4 @@
-import 'package:flower_shop/models/flower_stock.dart';
+import 'package:florashop/models/flower_stock.dart';
 
 FlowerStock? test;
 
