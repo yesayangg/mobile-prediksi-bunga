@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -29,6 +29,44 @@ class _NoStretchScrollBehavior extends MaterialScrollBehavior {
 }
 
 enum _HistoryFilter { all, today, mine }
+
+class _ReceiptPlatformActions {
+  static const _channel = MethodChannel('florashop/file_actions');
+
+  static Future<String> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String collection,
+  }) async {
+    final path = await _channel.invokeMethod<String>('saveFile', {
+      'bytes': bytes,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'collection': collection,
+    });
+
+    return path ?? fileName;
+  }
+
+  static Future<void> shareBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String collection,
+    required String text,
+    required String subject,
+  }) {
+    return _channel.invokeMethod<void>('shareFile', {
+      'bytes': bytes,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'collection': collection,
+      'text': text,
+      'subject': subject,
+    });
+  }
+}
 
 class TransactionHistoryTab extends StatefulWidget {
   final NumberFormat currencyFmt;
@@ -852,29 +890,33 @@ class _TransactionDetailSheet extends StatelessWidget {
     );
   }
 
-  Future<File> _writePdfFile() async {
+  Future<File> _writePdfFile([Uint8List? bytes]) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$_fileBaseName.pdf');
-    await file.writeAsBytes(await _buildPdfBytes(), flush: true);
+    await file.writeAsBytes(bytes ?? await _buildPdfBytes(), flush: true);
     return file;
   }
 
-  Future<File> _writePngFile() async {
+  Future<Uint8List> _buildPngBytes() async {
     final bytes = await _buildPdfBytes();
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/$_fileBaseName.png');
 
     await for (final page in Printing.raster(bytes, pages: [0], dpi: 180)) {
-      final png = await page.toPng();
-      await file.writeAsBytes(png, flush: true);
-      break;
+      return page.toPng();
     }
 
+    throw StateError('Struk belum bisa dirender menjadi gambar.');
+  }
+
+  Future<File> _writePngFile([Uint8List? bytes]) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/$_fileBaseName.png');
+    await file.writeAsBytes(bytes ?? await _buildPngBytes(), flush: true);
     return file;
   }
 
   Future<void> _printReceipt(BuildContext context) async {
     try {
+      _showActionMessage(context, 'Membuka pilihan printer...');
       final bytes = await _buildPdfBytes();
       await Printing.layoutPdf(
         name: tx.invoiceNumber,
@@ -888,7 +930,23 @@ class _TransactionDetailSheet extends StatelessWidget {
 
   Future<void> _savePdf(BuildContext context) async {
     try {
-      final file = await _writePdfFile();
+      final bytes = await _buildPdfBytes();
+      final fileName = '$_fileBaseName.pdf';
+      if (!context.mounted) return;
+
+      if (Platform.isAndroid) {
+        final location = await _ReceiptPlatformActions.saveBytes(
+          bytes: bytes,
+          fileName: fileName,
+          mimeType: 'application/pdf',
+          collection: 'downloads',
+        );
+        if (!context.mounted) return;
+        _showActionMessage(context, 'PDF struk tersimpan di $location');
+        return;
+      }
+
+      final file = await _writePdfFile(bytes);
       if (!context.mounted) return;
       _showActionMessage(context, 'PDF struk tersimpan: ${file.path}');
     } catch (_) {
@@ -899,7 +957,23 @@ class _TransactionDetailSheet extends StatelessWidget {
 
   Future<void> _saveImage(BuildContext context) async {
     try {
-      final file = await _writePngFile();
+      final bytes = await _buildPngBytes();
+      final fileName = '$_fileBaseName.png';
+      if (!context.mounted) return;
+
+      if (Platform.isAndroid) {
+        final location = await _ReceiptPlatformActions.saveBytes(
+          bytes: bytes,
+          fileName: fileName,
+          mimeType: 'image/png',
+          collection: 'pictures',
+        );
+        if (!context.mounted) return;
+        _showActionMessage(context, 'Gambar struk tersimpan di $location');
+        return;
+      }
+
+      final file = await _writePngFile(bytes);
       if (!context.mounted) return;
       _showActionMessage(context, 'Gambar struk tersimpan: ${file.path}');
     } catch (_) {
@@ -911,12 +985,30 @@ class _TransactionDetailSheet extends StatelessWidget {
   Future<void> _shareReceipt(BuildContext context,
       {required bool image}) async {
     try {
+      final fileName = image ? '$_fileBaseName.png' : '$_fileBaseName.pdf';
+      final mimeType = image ? 'image/png' : 'application/pdf';
+      final text = 'Struk transaksi FLORASHOP ${tx.invoiceNumber}';
+      final subject = 'Struk FLORASHOP ${tx.invoiceNumber}';
+
+      if (Platform.isAndroid) {
+        final bytes = image ? await _buildPngBytes() : await _buildPdfBytes();
+        await _ReceiptPlatformActions.shareBytes(
+          bytes: bytes,
+          fileName: fileName,
+          mimeType: mimeType,
+          collection: image ? 'pictures' : 'downloads',
+          text: text,
+          subject: subject,
+        );
+        return;
+      }
+
       final file = image ? await _writePngFile() : await _writePdfFile();
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Struk transaksi FLORASHOP ${tx.invoiceNumber}',
+          text: text,
           files: [XFile(file.path)],
-          subject: 'Struk FLORASHOP ${tx.invoiceNumber}',
+          subject: subject,
         ),
       );
     } catch (_) {
@@ -927,10 +1019,82 @@ class _TransactionDetailSheet extends StatelessWidget {
 
   void _showActionMessage(BuildContext context, String message) {
     if (!context.mounted) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+
+    if (overlay != null) {
+      late OverlayEntry entry;
+      entry = OverlayEntry(
+        builder: (_) => Positioned.fill(
+          child: IgnorePointer(
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.textPrimary.withValues(alpha: 0.96),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.16),
+                            blurRadius: 22,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 9),
+                          Flexible(
+                            child: Text(
+                              message,
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 11.5,
+                                height: 1.35,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      overlay.insert(entry);
+      Future.delayed(const Duration(seconds: 3), () {
+        if (entry.mounted) entry.remove();
+      });
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: AppTheme.textPrimary,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -1035,9 +1199,13 @@ class _ReceiptActionSheet extends StatelessWidget {
     required this.onShareImage,
   });
 
-  void _run(BuildContext context, Future<void> Function() action) {
+  Future<void> _run(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
     Navigator.of(context).pop();
-    action();
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    await action();
   }
 
   @override

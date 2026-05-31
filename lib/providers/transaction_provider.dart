@@ -151,8 +151,20 @@ class TransactionProvider extends ChangeNotifier {
 
       clearCart();
       return true;
-    } catch (e) {
-      _errorMessage = e.toString();
+    } on ValidationException catch (e) {
+      _errorMessage = e.message.isNotEmpty
+          ? e.message
+          : 'Data transaksi belum lengkap. Periksa kembali item dan pembayaran.';
+      return false;
+    } on UnauthorizedException {
+      _errorMessage = 'Sesi masuk berakhir. Silakan masuk kembali.';
+      return false;
+    } on ApiException catch (e) {
+      _errorMessage = _friendlyTransactionError(e.message, e.statusCode);
+      return false;
+    } catch (_) {
+      _errorMessage =
+          'Transaksi belum bisa disimpan. Pastikan internet aktif atau hubungi admin.';
       return false;
     } finally {
       _isSubmitting = false;
@@ -231,8 +243,11 @@ class TransactionProvider extends ChangeNotifier {
           createdAt: _transactionDate(first),
         );
       }).toList();
-    } catch (e) {
-      _errorMessage = e.toString();
+    } on ApiException catch (e) {
+      _errorMessage = _friendlyTransactionError(e.message, e.statusCode);
+    } catch (_) {
+      _errorMessage =
+          'Riwayat transaksi belum bisa dimuat. Pastikan internet aktif atau hubungi admin.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -269,5 +284,33 @@ class TransactionProvider extends ChangeNotifier {
     }
 
     return DateTime.now();
+  }
+
+  String _friendlyTransactionError(String message, int statusCode) {
+    final lower = message.toLowerCase();
+
+    if (statusCode == 0 ||
+        statusCode == 408 ||
+        statusCode >= 500 ||
+        lower.contains('socket') ||
+        lower.contains('timeout') ||
+        lower.contains('connection') ||
+        lower.contains('failed host')) {
+      return 'Server toko belum bisa dijangkau. Pastikan internet aktif atau hubungi admin.';
+    }
+
+    if (lower.contains('stok') || lower.contains('stock')) {
+      return 'Stok bunga berubah. Periksa keranjang lalu coba lagi.';
+    }
+
+    if (statusCode == 422) {
+      return message.isNotEmpty
+          ? message
+          : 'Data transaksi belum lengkap. Periksa kembali item dan pembayaran.';
+    }
+
+    if (message.trim().isNotEmpty) return message;
+
+    return 'Transaksi belum bisa diproses. Periksa data lalu coba lagi.';
   }
 }

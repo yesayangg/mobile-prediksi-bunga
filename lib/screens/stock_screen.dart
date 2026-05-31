@@ -810,6 +810,18 @@ class _StockContent extends StatelessWidget {
     required this.emptySubtitle,
   });
 
+  FlowerStock? get _focusedStock {
+    final query = provider.searchQuery.trim().toLowerCase();
+    if (query.isEmpty || provider.stocks.isEmpty) return null;
+
+    for (final item in provider.stocks) {
+      if (item.name.toLowerCase() == query) return item;
+    }
+
+    if (provider.stocks.length == 1) return provider.stocks.first;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (provider.isLoading && provider.stocks.isEmpty) {
@@ -838,18 +850,136 @@ class _StockContent extends StatelessWidget {
       edgeOffset: 4,
       onRefresh: onRefresh,
       child: ListView.builder(
+        key: ValueKey(
+          'stock-list-${provider.searchQuery}-${provider.selectedCategory}-${provider.isLowStockFilter}',
+        ),
         physics: const AlwaysScrollableScrollPhysics(
           parent: ClampingScrollPhysics(),
         ),
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 96),
-        itemCount: provider.stocks.length,
+        itemCount: provider.stocks.length + (_focusedStock == null ? 0 : 1),
         itemBuilder: (_, i) {
-          final item = provider.stocks[i];
+          final focusedStock = _focusedStock;
+          if (focusedStock != null && i == 0) {
+            return _FocusedStockBanner(item: focusedStock);
+          }
+
+          final item = provider.stocks[i - (focusedStock == null ? 0 : 1)];
           return _StockCard(
             item: item,
             currencyFmt: currencyFmt,
+            isHighlighted: focusedStock?.id == item.id,
           );
         },
+      ),
+    );
+  }
+}
+
+class _FocusedStockBanner extends StatelessWidget {
+  final FlowerStock item;
+
+  const _FocusedStockBanner({required this.item});
+
+  Color get _color {
+    switch (item.status) {
+      case StockStatus.outOfStock:
+        return AppTheme.error;
+      case StockStatus.low:
+        return AppTheme.warning;
+      case StockStatus.normal:
+        return AppTheme.success;
+    }
+  }
+
+  String get _statusLabel {
+    switch (item.status) {
+      case StockStatus.outOfStock:
+        return 'Habis';
+      case StockStatus.low:
+        return 'Kritis';
+      case StockStatus.normal:
+        return 'Aman';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(
+              item.isOutOfStock
+                  ? Icons.remove_shopping_cart_rounded
+                  : Icons.inventory_2_rounded,
+              color: _color,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Stok saat ini ${item.stock} ${item.unit}',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _color,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: _color.withValues(alpha: 0.16)),
+            ),
+            child: Text(
+              _statusLabel,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 10.2,
+                fontWeight: FontWeight.w900,
+                color: _color,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1207,8 +1337,13 @@ class _SkeletonBox extends StatelessWidget {
 class _StockCard extends StatelessWidget {
   final FlowerStock item;
   final NumberFormat currencyFmt;
+  final bool isHighlighted;
 
-  const _StockCard({required this.item, required this.currencyFmt});
+  const _StockCard({
+    required this.item,
+    required this.currencyFmt,
+    this.isHighlighted = false,
+  });
 
   Color get _statusColor {
     switch (item.status) {
@@ -1260,16 +1395,23 @@ class _StockCard extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: item.isLowStock
-                ? _statusColor.withValues(alpha: 0.24)
-                : const Color(0xFFF5C6D8),
+            width: isHighlighted ? 1.6 : 1,
+            color: isHighlighted
+                ? _statusColor
+                : item.isLowStock
+                    ? _statusColor.withValues(alpha: 0.24)
+                    : const Color(0xFFF5C6D8),
           ),
           boxShadow: [
             BoxShadow(
-              color:
-                  _statusColor.withValues(alpha: item.isLowStock ? 0.09 : 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: _statusColor.withValues(
+                  alpha: isHighlighted
+                      ? 0.16
+                      : item.isLowStock
+                          ? 0.09
+                          : 0.05),
+              blurRadius: isHighlighted ? 22 : 16,
+              offset: Offset(0, isHighlighted ? 10 : 8),
             ),
           ],
         ),

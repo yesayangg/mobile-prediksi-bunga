@@ -143,6 +143,9 @@ class _TransactionScreenState extends State<TransactionScreen>
           ),
           child: TabBarView(
             controller: _tabController,
+            // Swipe horizontal dipakai untuk pindah menu utama seperti pager.
+            // Tab Kasir tetap bisa dipindah lewat tombol Transaksi Baru/Riwayat.
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _NewTransactionTab(
                 currencyFmt: _currencyFmt,
@@ -1741,42 +1744,27 @@ class _CheckoutSheet extends StatelessWidget {
                       color: AppTheme.textPrimary,
                       fontFamily: 'Poppins')),
               const SizedBox(height: 8),
-              Row(
-                children: PaymentMethod.values.map((method) {
-                  final selected = txProvider.paymentMethod == method;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => context
-                          .read<TransactionProvider>()
-                          .setPaymentMethod(method),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: selected ? AppTheme.primary : AppTheme.bgLight,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color:
-                                selected ? AppTheme.primary : AppTheme.border,
-                          ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final itemWidth = (constraints.maxWidth - 8) / 2;
+
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: PaymentMethod.values.map((method) {
+                      return SizedBox(
+                        width: itemWidth,
+                        child: _PaymentMethodOption(
+                          method: method,
+                          selected: txProvider.paymentMethod == method,
+                          onTap: () => context
+                              .read<TransactionProvider>()
+                              .setPaymentMethod(method),
                         ),
-                        child: Text(
-                          method.label,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: selected
-                                ? Colors.white
-                                : AppTheme.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Poppins',
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ),
-                    ),
+                      );
+                    }).toList(),
                   );
-                }).toList(),
+                },
               ),
               const SizedBox(height: 14),
               Container(
@@ -1989,6 +1977,140 @@ class _CheckoutSheet extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentMethodOption extends StatelessWidget {
+  final PaymentMethod method;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaymentMethodOption({
+    required this.method,
+    required this.selected,
+    required this.onTap,
+  });
+
+  IconData get _icon {
+    switch (method) {
+      case PaymentMethod.cash:
+        return Icons.payments_rounded;
+      case PaymentMethod.qris:
+        return Icons.qr_code_2_rounded;
+      case PaymentMethod.transfer:
+        return Icons.account_balance_rounded;
+      case PaymentMethod.debit:
+        return Icons.credit_card_rounded;
+    }
+  }
+
+  String get _hint {
+    switch (method) {
+      case PaymentMethod.cash:
+        return 'Tunai';
+      case PaymentMethod.qris:
+        return 'Scan QR';
+      case PaymentMethod.transfer:
+        return 'Bank';
+      case PaymentMethod.debit:
+        return 'EDC';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected ? Colors.white : AppTheme.textPrimary;
+    final muted = selected
+        ? Colors.white.withValues(alpha: 0.82)
+        : AppTheme.textSecondary;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Metode pembayaran ${method.label}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            constraints: const BoxConstraints(minHeight: 58),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? AppTheme.primary : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? AppTheme.primary : const Color(0xFFF5C6D8),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(
+                    alpha: selected ? 0.14 : 0.04,
+                  ),
+                  blurRadius: 14,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : AppTheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    _icon,
+                    color: selected ? Colors.white : AppTheme.primary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        method.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        _hint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
