@@ -12,11 +12,19 @@ class StockProvider extends ChangeNotifier {
   bool _showLowStockOnly = false;
 
   List<FlowerStock> get stocks => _filteredStocks;
+  List<FlowerStock> get allStocks => List.unmodifiable(_stocks);
   List<FlowerStock> get lowStockItems =>
       _stocks.where((s) => s.isLowStock).toList();
+  List<FlowerStock> get availableItems =>
+      _stocks.where((s) => !s.isOutOfStock).toList();
+  List<FlowerStock> get outOfStockItems =>
+      _stocks.where((s) => s.isOutOfStock).toList();
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  int get totalCount => _stocks.length;
   int get lowStockCount => lowStockItems.length;
+  int get availableCount => availableItems.length;
+  int get outOfStockCount => outOfStockItems.length;
   bool get isLowStockFilter => _showLowStockOnly;
   String? get selectedCategory => _selectedCategory;
   String get searchQuery => _searchQuery;
@@ -34,11 +42,7 @@ class StockProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await ApiService.getStocks(
-        search: _searchQuery.isEmpty ? null : _searchQuery,
-        category: _selectedCategory == 'tersedia' ? null : _selectedCategory,
-        lowStockOnly: _showLowStockOnly ? true : null,
-      );
+      final response = await ApiService.getStocks();
       _stocks = (response['data'] as List)
           .map((e) => FlowerStock.fromJson(e))
           .toList();
