@@ -112,7 +112,10 @@ class _MainNavigationState extends State<MainNavigation> {
         onNavigateToTransactions: _goToTransactionHistory,
       ),
       const StockScreen(),
-      TransactionScreen(initialTab: _transactionInitialTab),
+      TransactionScreen(
+        initialTab: _transactionInitialTab,
+        onOpenStock: _goToLowStock,
+      ),
       const PredictionScreen(),
     ];
 

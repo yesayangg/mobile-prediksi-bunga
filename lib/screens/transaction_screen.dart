@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/transaction_provider.dart';
@@ -9,7 +10,6 @@ import '../theme/app_theme.dart';
 import '../widgets/florashop_logo.dart';
 import 'transaction_history.dart';
 import '../providers/notification_provider.dart';
-import '../widgets/notification_popup.dart';
 
 String _getFlowerEmoji(String name) {
   final n = name.toLowerCase();
@@ -21,18 +21,6 @@ String _getFlowerEmoji(String name) {
   if (n.contains('melati')) return '🤍';
   if (n.contains('lily') || n.contains('lili')) return '💐';
   return '🌺';
-}
-
-Color _getFlowerBgColor(String name) {
-  final n = name.toLowerCase();
-  if (n.contains('mawar')) return const Color(0xFFFFF0F5);
-  if (n.contains('tulip')) return const Color(0xFFF5F0FF);
-  if (n.contains('matahari')) return const Color(0xFFFFFBF0);
-  if (n.contains('krisan')) return const Color(0xFFF0FFF5);
-  if (n.contains('anggrek')) return const Color(0xFFFFF0FA);
-  if (n.contains('melati')) return const Color(0xFFFFFFF0);
-  if (n.contains('lily') || n.contains('lili')) return const Color(0xFFF0F5FF);
-  return const Color(0xFFFFF0F8);
 }
 
 Color _getFlowerIconBgColor(String name) {
@@ -83,8 +71,9 @@ String _friendlyTransactionError(String? message) {
 
 class TransactionScreen extends StatefulWidget {
   final int initialTab;
+  final VoidCallback? onOpenStock;
 
-  const TransactionScreen({super.key, this.initialTab = 0});
+  const TransactionScreen({super.key, this.initialTab = 0, this.onOpenStock});
 
   @override
   State<TransactionScreen> createState() => _TransactionScreenState();
@@ -129,7 +118,7 @@ class _TransactionScreenState extends State<TransactionScreen>
 
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(192),
+        preferredSize: const Size.fromHeight(200),
         child: _CashierHeader(
           tabController: _tabController,
           cartCount: txProvider.cartItemCount,
@@ -155,7 +144,10 @@ class _TransactionScreenState extends State<TransactionScreen>
           child: TabBarView(
             controller: _tabController,
             children: [
-              _NewTransactionTab(currencyFmt: _currencyFmt),
+              _NewTransactionTab(
+                currencyFmt: _currencyFmt,
+                onOpenStock: widget.onOpenStock,
+              ),
               TransactionHistoryTab(currencyFmt: _currencyFmt),
             ],
           ),
@@ -344,38 +336,36 @@ class _CashierTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tab(
       height: 58,
-      child: Row(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16),
-          const SizedBox(width: 6),
+          const SizedBox(height: 1),
           Flexible(
             child: Text(
               label,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (count > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                count > 99 ? '99+' : count.toString(),
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
+          const SizedBox(height: 1),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              count > 99 ? '99+' : count.toString(),
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -384,7 +374,12 @@ class _CashierTab extends StatelessWidget {
 
 class _NewTransactionTab extends StatefulWidget {
   final NumberFormat currencyFmt;
-  const _NewTransactionTab({required this.currencyFmt});
+  final VoidCallback? onOpenStock;
+
+  const _NewTransactionTab({
+    required this.currencyFmt,
+    this.onOpenStock,
+  });
 
   @override
   State<_NewTransactionTab> createState() => _NewTransactionTabState();
@@ -462,6 +457,7 @@ class _NewTransactionTabState extends State<_NewTransactionTab> {
             txProvider: txProvider,
             currencyFmt: widget.currencyFmt,
             onRefresh: _refreshStocks,
+            onOpenStock: widget.onOpenStock,
           ),
         ),
         if (!txProvider.cartIsEmpty)
@@ -552,12 +548,14 @@ class _ProductGrid extends StatelessWidget {
   final TransactionProvider txProvider;
   final NumberFormat currencyFmt;
   final Future<void> Function() onRefresh;
+  final VoidCallback? onOpenStock;
 
   const _ProductGrid({
     required this.stockProvider,
     required this.txProvider,
     required this.currencyFmt,
     required this.onRefresh,
+    this.onOpenStock,
   });
 
   @override
@@ -593,6 +591,22 @@ class _ProductGrid extends StatelessWidget {
       );
     }
 
+    if (stockProvider.searchQuery.trim().isEmpty &&
+        stockProvider.availableCount == 0) {
+      return _CashierStatePanel(
+        icon: Icons.inventory_2_outlined,
+        color: AppTheme.error,
+        title: 'Belum ada bunga tersedia',
+        subtitle: 'Semua stok saat ini habis. Perbarui stok sebelum transaksi.',
+        actionLabel: onOpenStock == null ? 'Perbarui' : 'Buka Stok',
+        onAction: onOpenStock == null
+            ? onRefresh
+            : () async {
+                onOpenStock?.call();
+              },
+      );
+    }
+
     return RefreshIndicator(
       color: AppTheme.primary,
       backgroundColor: Colors.white,
@@ -605,7 +619,7 @@ class _ProductGrid extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 96),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.78,
+          childAspectRatio: 0.92,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
@@ -837,7 +851,7 @@ class _CashierSkeletonGrid extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 96),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.78,
+        childAspectRatio: 0.92,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
@@ -921,16 +935,19 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outOfStock = flower.isOutOfStock;
+    final hasFlowerMark = _getFlowerEmoji(flower.name).isNotEmpty;
+    final statusColor = outOfStock ? const Color(0xFFE85D6A) : AppTheme.success;
     final bgColor = outOfStock
-        ? Colors.white.withValues(alpha: 0.88)
+        ? Colors.white.withValues(alpha: 0.94)
         : inCartQty > 0
-            ? AppTheme.primary.withValues(alpha: 0.08)
-            : _getFlowerBgColor(flower.name).withValues(alpha: 0.72);
+            ? AppTheme.primary.withValues(alpha: 0.07)
+            : Colors.white.withValues(alpha: 0.94);
     final iconBgColor =
         outOfStock ? AppTheme.border : _getFlowerIconBgColor(flower.name);
 
     return Semantics(
       button: true,
+      enabled: hasFlowerMark,
       label:
           '${flower.name}, stok ${flower.stock}, harga $price${outOfStock ? ', habis' : ''}',
       child: Container(
@@ -954,14 +971,21 @@ class _ProductCard extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              top: -14,
-              right: -12,
-              child: Text(
-                _getFlowerEmoji(flower.name),
-                style: TextStyle(
-                  fontSize: 60,
-                  color:
-                      Colors.black.withValues(alpha: outOfStock ? 0.025 : 0.05),
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      statusColor.withValues(alpha: 0.7),
+                      AppTheme.primary.withValues(alpha: 0.18),
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
                 ),
               ),
             ),
@@ -974,22 +998,27 @@ class _ProductCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 42,
-                        height: 42,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          color: iconBgColor.withValues(
-                              alpha: outOfStock ? 0.7 : 1),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Center(
-                          child: Text(
-                            _getFlowerEmoji(flower.name),
-                            style: TextStyle(
-                              fontSize: 19,
-                              color: Colors.black
-                                  .withValues(alpha: outOfStock ? 0.45 : 1),
-                            ),
+                          gradient: LinearGradient(
+                            colors: [
+                              iconBgColor.withValues(
+                                alpha: outOfStock ? 0.56 : 0.92,
+                              ),
+                              Colors.white.withValues(alpha: 0.84),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.local_florist_rounded,
+                          color: outOfStock
+                              ? statusColor.withValues(alpha: 0.72)
+                              : AppTheme.primary,
+                          size: 23,
                         ),
                       ),
                       const Spacer(),
@@ -1011,9 +1040,7 @@ class _ProductCard extends StatelessWidget {
                         child: Text(
                           outOfStock ? 'Habis' : 'Ada',
                           style: TextStyle(
-                            color: outOfStock
-                                ? const Color(0xFFE85D6A)
-                                : AppTheme.success,
+                            color: statusColor,
                             fontSize: 9.5,
                             fontWeight: FontWeight.w900,
                             fontFamily: 'Poppins',
@@ -1023,7 +1050,7 @@ class _ProductCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
                     flower.name,
                     style: TextStyle(
@@ -1040,30 +1067,24 @@ class _ProductCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    'Stok ${flower.stock} ${flower.unit}',
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      color: outOfStock
-                          ? const Color(0xFFE85D6A)
-                          : AppTheme.textSecondary,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 0,
-                    ),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: [
+                      _ProductMiniChip(
+                        icon: Icons.inventory_2_outlined,
+                        label: '${flower.stock} ${flower.unit}',
+                        color: statusColor,
+                      ),
+                      _ProductMiniChip(
+                        icon: Icons.sell_outlined,
+                        label: price,
+                        color: AppTheme.primary,
+                      ),
+                    ],
                   ),
                   const Spacer(),
-                  Text(
-                    price,
-                    style: TextStyle(
-                      color: outOfStock ? AppTheme.textHint : AppTheme.primary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   if (inCartQty == 0)
                     SizedBox(
                       width: double.infinity,
@@ -1142,6 +1163,46 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
+class _ProductMiniChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _ProductMiniChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 9.6,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Poppins',
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _QtyBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
@@ -1170,11 +1231,337 @@ class _QtyBtn extends StatelessWidget {
   }
 }
 
+class _RupiahInputFormatter extends TextInputFormatter {
+  final _formatter = NumberFormat.decimalPattern('id_ID');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue();
+    }
+
+    final value = int.tryParse(digits) ?? 0;
+    final formatted = _formatter.format(value);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _PaymentConfirmDialog extends StatelessWidget {
+  final String total;
+  final String method;
+  final String paid;
+  final String change;
+  final bool isCash;
+
+  const _PaymentConfirmDialog({
+    required this.total,
+    required this.method,
+    required this.paid,
+    required this.change,
+    required this.isCash,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF5D1734).withValues(alpha: 0.18),
+              blurRadius: 30,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.payments_rounded,
+                    color: AppTheme.primary,
+                    size: 23,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Simpan transaksi?',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _ConfirmRow(label: 'Total', value: total, isTotal: true),
+            const SizedBox(height: 8),
+            _ConfirmRow(label: 'Metode', value: method),
+            if (isCash) ...[
+              const SizedBox(height: 8),
+              _ConfirmRow(label: 'Dibayar', value: paid),
+              const SizedBox(height: 8),
+              _ConfirmRow(
+                label: 'Kembalian',
+                value: change,
+                valueColor: AppTheme.success,
+              ),
+            ],
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                      foregroundColor: AppTheme.textSecondary,
+                      side: const BorderSide(color: Color(0xFFF5C6D8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: const Text('Batal'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: const Text('Ya, Simpan'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfirmRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isTotal;
+  final Color? valueColor;
+
+  const _ConfirmRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.bgLight,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF5C6D8)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: isTotal ? 13 : 12,
+              fontWeight: isTotal ? FontWeight.w900 : FontWeight.w700,
+              color: AppTheme.textSecondary,
+              letterSpacing: 0,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: isTotal ? 14 : 12,
+              fontWeight: FontWeight.w900,
+              color: valueColor ?? AppTheme.textPrimary,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionCenterNotice extends StatelessWidget {
+  const _TransactionCenterNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: SafeArea(
+          child: Center(
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              tween: Tween(begin: 0, end: 1),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.scale(
+                    scale: 0.96 + (value * 0.04),
+                    child: child,
+                  ),
+                );
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: MediaQuery.of(context).size.width - 48,
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.97),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: AppTheme.success.withValues(alpha: 0.24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF5D1734).withValues(alpha: 0.18),
+                        blurRadius: 28,
+                        offset: const Offset(0, 14),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppTheme.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppTheme.success,
+                          size: 23,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Transaksi berhasil',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w900,
+                                color: AppTheme.textPrimary,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Data penjualan sudah disimpan.',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 11.5,
+                                height: 1.35,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textSecondary,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CheckoutSheet extends StatelessWidget {
   final NumberFormat currencyFmt;
   final TextEditingController amountCtrl;
 
   const _CheckoutSheet({required this.currencyFmt, required this.amountCtrl});
+
+  Future<bool> _confirmPayment(
+    BuildContext context,
+    TransactionProvider txProvider,
+  ) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _PaymentConfirmDialog(
+            total: currencyFmt.format(txProvider.totalAmount),
+            method: txProvider.paymentMethod.label,
+            paid: currencyFmt.format(txProvider.amountPaid),
+            change: currencyFmt.format(txProvider.change),
+            isCash: txProvider.paymentMethod == PaymentMethod.cash,
+          ),
+        ) ??
+        false;
+  }
+
+  void _showCenterNotice(BuildContext context) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => const _TransactionCenterNotice(),
+    );
+
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (entry.mounted) entry.remove();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1466,6 +1853,7 @@ class _CheckoutSheet extends StatelessWidget {
                 TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [_RupiahInputFormatter()],
                   decoration: InputDecoration(
                     labelText: 'Jumlah Dibayar',
                     prefixText: 'Rp ',
@@ -1488,9 +1876,8 @@ class _CheckoutSheet extends StatelessWidget {
                     ),
                   ),
                   onChanged: (v) {
-                    final amount = double.tryParse(
-                            v.replaceAll('.', '').replaceAll(',', '')) ??
-                        0;
+                    final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
+                    final amount = double.tryParse(digits) ?? 0;
                     context.read<TransactionProvider>().setAmountPaid(amount);
                   },
                 ),
@@ -1545,6 +1932,10 @@ class _CheckoutSheet extends StatelessWidget {
                             return;
                           }
 
+                          final confirmed = await _confirmPayment(
+                              context, transactionProvider);
+                          if (!confirmed || !context.mounted) return;
+
                           final success =
                               await transactionProvider.submitTransaction();
 
@@ -1561,12 +1952,8 @@ class _CheckoutSheet extends StatelessWidget {
 
                             if (!context.mounted) return;
 
-                            NotificationPopup.show(
-                              context,
-                              title: 'Transaksi Berhasil',
-                              message: 'Transaksi berhasil disimpan.',
-                              type: NotificationType.transaction,
-                            );
+                            amountCtrl.clear();
+                            _showCenterNotice(context);
 
                             if (navigator.canPop()) navigator.pop();
                           } else {
