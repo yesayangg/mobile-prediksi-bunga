@@ -408,6 +408,181 @@ String _formatCountdown(int seconds) {
       '${remainingSeconds.toString().padLeft(2, '0')}';
 }
 
+Future<void> _showCenterAuthNotice(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String message,
+  Color color = const Color(0xFFE21666),
+  Duration duration = const Duration(milliseconds: 1900),
+}) async {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _AuthCenterNotice(
+      icon: icon,
+      title: title,
+      message: message,
+      color: color,
+    ),
+  );
+
+  overlay.insert(entry);
+  await Future<void>.delayed(duration);
+  if (entry.mounted) entry.remove();
+}
+
+class _AuthCenterNotice extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color color;
+
+  const _AuthCenterNotice({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.color,
+  });
+
+  @override
+  State<_AuthCenterNotice> createState() => _AuthCenterNoticeState();
+}
+
+class _AuthCenterNoticeState extends State<_AuthCenterNotice>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fade = Tween<double>(begin: 0, end: 1).animate(curve);
+    _scale = Tween<double>(begin: 0.92, end: 1).animate(curve);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: SafeArea(
+          child: Center(
+            child: FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 340),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.94),
+                          borderRadius: BorderRadius.circular(26),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.86),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFB11E5C)
+                                  .withValues(alpha: 0.22),
+                              blurRadius: 38,
+                              offset: const Offset(0, 18),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 58,
+                              height: 58,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    widget.color.withValues(alpha: 0.9),
+                                    const Color(0xFFFF5C9D),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: widget.color.withValues(alpha: 0.26),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 9),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                widget.icon,
+                                color: Colors.white,
+                                size: 29,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              widget.title,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 18,
+                                height: 1.15,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF4B1528),
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              widget.message,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 12.5,
+                                height: 1.45,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF9F6079),
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FieldHelperText extends StatelessWidget {
   final String text;
 
@@ -1288,7 +1463,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Berhasil masuk ke FLORASHOP.'),
+          content: Text('Anda berhasil masuk.'),
           backgroundColor: AppTheme.success,
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 2),
@@ -1521,7 +1696,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => OtpVerificationScreen(email: normalizedEmail),
+          builder: (_) => OtpVerificationScreen(
+            email: normalizedEmail,
+            showSentNotice: true,
+          ),
         ),
       );
     } catch (e) {
@@ -1623,8 +1801,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
+  final bool showSentNotice;
 
-  const OtpVerificationScreen({super.key, required this.email});
+  const OtpVerificationScreen({
+    super.key,
+    required this.email,
+    this.showSentNotice = false,
+  });
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -1649,6 +1832,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     _enterSecureAuthScreen();
     _startResendCooldown(notify: false);
     _startOtpExpiryTimer(notify: false);
+    if (widget.showSentNotice) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showOtpSentNotice();
+      });
+    }
   }
 
   @override
@@ -1668,6 +1857,19 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String get _otpCode => _otpCtrls.map((c) => c.text).join();
   bool get _isOtpExpired => _otpExpirySeconds <= 0;
   String get _maskedEmail => _maskEmail(widget.email);
+
+  void _showOtpSentNotice() {
+    unawaited(
+      _showCenterAuthNotice(
+        context,
+        icon: Icons.mark_email_read_rounded,
+        title: 'Kode sudah terkirim',
+        message:
+            'Cek email $_maskedEmail. Kode OTP berlaku 5 menit di aplikasi FLORASHOP.',
+        color: const Color(0xFFE21666),
+      ),
+    );
+  }
 
   void _fillOtpFrom(String value, {required int startIndex}) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
@@ -1770,14 +1972,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _clearOtp();
       _startResendCooldown();
       _startOtpExpiryTimer();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kode OTP baru sudah dikirim ke email kasir.'),
-          backgroundColor: AppTheme.success,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showOtpSentNotice();
     } catch (e) {
       if (!mounted) return;
 

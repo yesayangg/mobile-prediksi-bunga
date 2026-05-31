@@ -44,12 +44,27 @@ class ProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(dialogContext);
 
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+
               await context.read<AuthProvider>().logout();
+
               if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
+                navigator.pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
                   (route) => false,
                 );
+
+                messenger
+                  ..clearSnackBars()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text('Anda berhasil keluar.'),
+                      backgroundColor: AppTheme.success,
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
               }
             },
             child: const Text(
