@@ -14,6 +14,19 @@ import 'stock_screen.dart';
 import 'transaction_screen.dart';
 import 'prediction_screen.dart';
 
+class _NoStretchScrollBehavior extends MaterialScrollBehavior {
+  const _NoStretchScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
+  }
+}
+
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -31,6 +44,19 @@ class _MainNavigationState extends State<MainNavigation> {
   // 3 = Prediksi
   int _currentIndex = 0;
   int _transactionInitialTab = 0;
+  late final PageController _pageController;
+
+  void _animateToTab(int index) {
+    if (!_pageController.hasClients) return;
+
+    unawaited(
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
 
   // Fungsi ini dipanggil dari halaman Beranda ketika user menekan
   // tombol/link "Lihat Semua" pada bagian prediksi singkat.
@@ -41,6 +67,7 @@ class _MainNavigationState extends State<MainNavigation> {
     setState(() {
       _currentIndex = 3;
     });
+    _animateToTab(3);
   }
 
   void _goToStock() {
@@ -53,6 +80,21 @@ class _MainNavigationState extends State<MainNavigation> {
       _currentIndex = 1;
     });
 
+    _animateToTab(1);
+    unawaited(stock.loadStocks(refresh: true));
+  }
+
+  void _goToStockSearch(String query) {
+    final stock = context.read<StockProvider>();
+    stock.toggleLowStockFilter(false);
+    stock.filterByCategory(null);
+    stock.search(query);
+
+    setState(() {
+      _currentIndex = 1;
+    });
+
+    _animateToTab(1);
     unawaited(stock.loadStocks(refresh: true));
   }
 
@@ -65,6 +107,7 @@ class _MainNavigationState extends State<MainNavigation> {
       _currentIndex = 1;
     });
 
+    _animateToTab(1);
     unawaited(stock.loadStocks(refresh: true));
   }
 
@@ -73,11 +116,13 @@ class _MainNavigationState extends State<MainNavigation> {
       _transactionInitialTab = 1;
       _currentIndex = 2;
     });
+    _animateToTab(2);
   }
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
 
     // Memuat data awal setelah widget pertama kali selesai dirender.
     //
@@ -88,6 +133,12 @@ class _MainNavigationState extends State<MainNavigation> {
       context.read<NotificationProvider>().loadNotifications();
       context.read<PredictionProvider>().loadPredictions();
     });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -116,16 +167,24 @@ class _MainNavigationState extends State<MainNavigation> {
         initialTab: _transactionInitialTab,
         onOpenStock: _goToLowStock,
       ),
-      const PredictionScreen(),
+      PredictionScreen(onOpenStockForFlower: _goToStockSearch),
     ];
 
     return Scaffold(
-      // IndexedStack menjaga state tiap halaman tetap hidup.
-      // Contoh: ketika pindah dari Stok ke Kasir lalu kembali ke Stok,
-      // halaman Stok tidak dibuat ulang dari nol.
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
+      // PageView membuat perpindahan tab terasa seperti pager modern:
+      // halaman di kanan muncul dari kanan, halaman di kiri muncul dari kiri.
+      body: ScrollConfiguration(
+        behavior: const _NoStretchScrollBehavior(),
+        child: PageView(
+          controller: _pageController,
+          physics: const ClampingScrollPhysics(),
+          onPageChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          children: screens,
+        ),
       ),
 
       // Bottom navigation utama aplikasi mobile.
@@ -166,6 +225,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
             // Saat user menekan menu bawah, update index halaman aktif.
             onTap: (index) {
+              if (index == _currentIndex) return;
+
               if (index == 2) {
                 final stock = context.read<StockProvider>();
                 stock.search('');
@@ -177,6 +238,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 if (index == 2) _transactionInitialTab = 0;
                 _currentIndex = index;
               });
+              _animateToTab(index);
             },
 
             // Urutan menu:
