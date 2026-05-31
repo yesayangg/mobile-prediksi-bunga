@@ -35,6 +35,14 @@ class _StockScreenState extends State<StockScreen> {
   @override
   Widget build(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
+    if (_searchCtrl.text != stockProvider.searchQuery) {
+      _searchCtrl.value = TextEditingValue(
+        text: stockProvider.searchQuery,
+        selection: TextSelection.collapsed(
+          offset: stockProvider.searchQuery.length,
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: PreferredSize(

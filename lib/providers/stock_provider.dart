@@ -19,6 +19,7 @@ class StockProvider extends ChangeNotifier {
   int get lowStockCount => lowStockItems.length;
   bool get isLowStockFilter => _showLowStockOnly;
   String? get selectedCategory => _selectedCategory;
+  String get searchQuery => _searchQuery;
 
   List<String> get categories {
     final cats = _stocks.map((s) => s.category).toSet().toList();

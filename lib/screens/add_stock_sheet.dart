@@ -117,6 +117,8 @@ class _AddStockSheetState extends State<AddStockSheet> {
           type: NotificationType.stockAdded,
         );
 
+        if (!mounted) return;
+
         NotificationPopup.show(
           context,
           title: 'Stok Diperbarui',
@@ -137,6 +139,8 @@ class _AddStockSheetState extends State<AddStockSheet> {
           type: NotificationType.flowerAdded,
         );
 
+        if (!mounted) return;
+
         NotificationPopup.show(
           context,
           title: 'Bunga Ditambahkan',
@@ -147,6 +151,8 @@ class _AddStockSheetState extends State<AddStockSheet> {
 
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
+      if (!mounted) return;
+
       setState(() => _isLoading = false);
       NotificationPopup.show(
         context,
@@ -301,10 +307,10 @@ class _AddStockSheetState extends State<AddStockSheet> {
                         },
                       )
                     : null,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
               style: const TextStyle(fontFamily: 'Poppins'),
               validator: (_) =>
@@ -469,16 +475,14 @@ class _AddStockSheetState extends State<AddStockSheet> {
           onChanged: (v) {
             final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
             _rawPrice = digits.isEmpty ? 0 : int.parse(digits);
-            final formatted = digits.isEmpty
-                ? ''
-                : _rupiahFormatter.format(_rawPrice);
+            final formatted =
+                digits.isEmpty ? '' : _rupiahFormatter.format(_rawPrice);
             _priceCtrl.value = TextEditingValue(
               text: formatted,
               selection: TextSelection.collapsed(offset: formatted.length),
             );
           },
-          validator: (v) =>
-              _rawPrice <= 0 ? 'Harga tidak boleh kosong' : null,
+          validator: (v) => _rawPrice <= 0 ? 'Harga tidak boleh kosong' : null,
         ),
         const SizedBox(height: 14),
 
@@ -489,8 +493,8 @@ class _AddStockSheetState extends State<AddStockSheet> {
           items: _units
               .map((u) => DropdownMenuItem(
                     value: u,
-                    child: Text(u,
-                        style: const TextStyle(fontFamily: 'Poppins')),
+                    child:
+                        Text(u, style: const TextStyle(fontFamily: 'Poppins')),
                   ))
               .toList(),
           onChanged: (v) => setState(() => _unit = v!),
@@ -505,8 +509,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
       labelStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
       prefixIcon: Icon(icon, size: 18),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
 }
@@ -541,8 +544,7 @@ class _TabButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 16,
-                  color: isActive ? Colors.white : AppTheme.primary),
+                  size: 16, color: isActive ? Colors.white : AppTheme.primary),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -585,8 +587,7 @@ class _TypeButton extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color:
-                isActive ? color.withValues(alpha: 0.1) : Colors.transparent,
+            color: isActive ? color.withValues(alpha: 0.1) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isActive ? color : AppTheme.border,
@@ -595,9 +596,7 @@ class _TypeButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon,
-                  size: 16,
-                  color: isActive ? color : AppTheme.textHint),
+              Icon(icon, size: 16, color: isActive ? color : AppTheme.textHint),
               const SizedBox(width: 6),
               Text(
                 label,
