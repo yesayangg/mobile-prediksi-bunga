@@ -47,7 +47,9 @@ Color _getFlowerIconBgColor(String name) {
 }
 
 class TransactionScreen extends StatefulWidget {
-  const TransactionScreen({super.key});
+  final int initialTab;
+
+  const TransactionScreen({super.key, this.initialTab = 0});
 
   @override
   State<TransactionScreen> createState() => _TransactionScreenState();
@@ -62,7 +64,21 @@ class _TransactionScreenState extends State<TransactionScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1).toInt(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant TransactionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final nextIndex = widget.initialTab.clamp(0, 1).toInt();
+    if (nextIndex != _tabController.index) {
+      _tabController.animateTo(nextIndex);
+    }
   }
 
   @override
@@ -736,7 +752,8 @@ class _CheckoutSheet extends StatelessWidget {
                   ),
                   Switch.adaptive(
                     value: txProvider.isPromo,
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
+                    activeTrackColor: AppTheme.primary.withValues(alpha: 0.3),
                     onChanged: (value) {
                       context.read<TransactionProvider>().setPromo(value);
                     },
@@ -824,6 +841,8 @@ class _CheckoutSheet extends StatelessWidget {
                             message: 'Pembayaran berhasil disimpan! 🛍️',
                             type: NotificationType.transaction,
                           );
+
+                          if (!context.mounted) return;
 
                           NotificationPopup.show(
                             context,
