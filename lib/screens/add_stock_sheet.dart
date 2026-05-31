@@ -11,6 +11,20 @@ import '../widgets/notification_popup.dart';
 
 enum StockActionType { adjust, addNew }
 
+class StockActionResult {
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color color;
+
+  const StockActionResult({
+    required this.title,
+    required this.message,
+    required this.icon,
+    required this.color,
+  });
+}
+
 class AddStockSheet extends StatefulWidget {
   final List<FlowerStock> existingStocks;
 
@@ -32,29 +46,51 @@ class _AddStockSheetState extends State<AddStockSheet> {
   List<FlowerStock> _searchResults = [];
   bool _showDropdown = false;
   String _adjustType = 'add';
-  String? _selectedCategory;
-  String _unit = 'tangkai';
+  final String _selectedCategory = 'Bunga Potong';
+  final String _unit = 'tangkai';
   bool _isLoading = false;
   int _rawPrice = 0;
-
-  final List<String> _units = ['tangkai', 'pot', 'lusin', 'ikat', 'buket'];
-
-  final List<String> _categories = [
-    'Bunga Potong',
-    'Buket',
-    'Rangkaian',
-    'Bunga Papan',
-    'Tanaman Pot',
-    'Bunga Kering',
-    'Bunga Artificial',
-    'Karangan Bunga',
-  ];
 
   final _rupiahFormatter = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp ',
     decimalDigits: 0,
   );
+
+  bool get _isAdjustMode => _action == StockActionType.adjust;
+
+  IconData get _headerIcon =>
+      _isAdjustMode ? Icons.add_box_rounded : Icons.local_florist_rounded;
+
+  String get _sheetTitle =>
+      _isAdjustMode ? 'Perbarui Stok Bunga' : 'Tambah Bunga Baru';
+
+  String get _sheetSubtitle => _isAdjustMode
+      ? 'Pilih bunga lalu tambah atau kurangi jumlah stok.'
+      : 'Tambahkan bunga baru dengan satuan tangkai.';
+
+  String get _submitLabel {
+    if (!_isAdjustMode) return 'Tambah Bunga Baru';
+    return _adjustType == 'add' ? 'Tambah Stok' : 'Kurangi Stok';
+  }
+
+  String? get _actionSummary {
+    if (_isAdjustMode) {
+      final flower = _selectedFlower;
+      final quantity = int.tryParse(_quantityCtrl.text.trim());
+      if (flower == null || quantity == null || quantity <= 0) return null;
+
+      final sign = _adjustType == 'add' ? '+' : '-';
+      return '${flower.name} $sign$quantity ${flower.unit}';
+    }
+
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty || _rawPrice <= 0) {
+      return null;
+    }
+
+    return 'Bunga baru: $name, ${_rupiahFormatter.format(_rawPrice)} / $_unit';
+  }
 
   @override
   void dispose() {
@@ -103,6 +139,10 @@ class _AddStockSheetState extends State<AddStockSheet> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final confirmed = await _confirmSubmit();
+    if (!confirmed || !mounted) return;
+
     setState(() => _isLoading = true);
 
     final notifProvider = context.read<NotificationProvider>();
@@ -110,25 +150,36 @@ class _AddStockSheetState extends State<AddStockSheet> {
     try {
       if (_action == StockActionType.adjust) {
         final flower = _selectedFlower!;
+        final quantity = int.parse(_quantityCtrl.text.trim());
         await ApiService.updateStock(
           flower.id,
-          int.parse(_quantityCtrl.text.trim()),
+          quantity,
           _adjustType,
         );
 
-        final message = 'Stok ${flower.name} berhasil diperbarui.';
+        final title = _adjustType == 'add'
+            ? 'Stok Bunga Ditambahkan'
+            : 'Stok Bunga Dikurangi';
+        final actionLabel = _adjustType == 'add' ? 'ditambahkan' : 'dikurangi';
+        final message =
+            'Stok bunga ${flower.name} berhasil $actionLabel sebanyak $quantity ${flower.unit}.';
         await notifProvider.addNotification(
-          title: 'Stok Diperbarui',
+          title: title,
           message: message,
           type: NotificationType.stockAdded,
         );
 
         if (!mounted) return;
-        NotificationPopup.show(
+        Navigator.pop(
           context,
-          title: 'Stok Diperbarui',
-          message: message,
-          type: NotificationType.stockAdded,
+          StockActionResult(
+            title: title,
+            message: message,
+            icon: _adjustType == 'add'
+                ? Icons.add_box_rounded
+                : Icons.remove_circle_outline_rounded,
+            color: _adjustType == 'add' ? AppTheme.success : AppTheme.error,
+          ),
         );
       } else {
         final name = _nameCtrl.text.trim();
@@ -139,7 +190,8 @@ class _AddStockSheetState extends State<AddStockSheet> {
           'unit': _unit,
         });
 
-        final message = '$name berhasil ditambahkan.';
+        final message =
+            'Bunga baru Bunga Potong $name berhasil ditambahkan dengan harga ${_rupiahFormatter.format(_rawPrice)} per tangkai.';
         await notifProvider.addNotification(
           title: 'Bunga Ditambahkan',
           message: message,
@@ -147,15 +199,16 @@ class _AddStockSheetState extends State<AddStockSheet> {
         );
 
         if (!mounted) return;
-        NotificationPopup.show(
+        Navigator.pop(
           context,
-          title: 'Bunga Ditambahkan',
-          message: message,
-          type: NotificationType.flowerAdded,
+          StockActionResult(
+            title: 'Bunga Ditambahkan',
+            message: message,
+            icon: Icons.local_florist_rounded,
+            color: AppTheme.primary,
+          ),
         );
       }
-
-      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -167,6 +220,53 @@ class _AddStockSheetState extends State<AddStockSheet> {
         type: NotificationType.outOfStock,
       );
     }
+  }
+
+  Future<bool> _confirmSubmit() async {
+    if (_isAdjustMode) {
+      final flower = _selectedFlower!;
+      final quantity = int.parse(_quantityCtrl.text.trim());
+      final isAdd = _adjustType == 'add';
+      final finalStock = isAdd
+          ? flower.stock + quantity
+          : (flower.stock - quantity).clamp(0, flower.stock);
+
+      return await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => _ConfirmStockDialog(
+              icon: isAdd
+                  ? Icons.add_box_rounded
+                  : Icons.remove_circle_outline_rounded,
+              color: isAdd ? AppTheme.success : AppTheme.error,
+              title: isAdd ? 'Yakin tambah stok?' : 'Yakin kurangi stok?',
+              message: isAdd
+                  ? 'Stok ${flower.name} akan ditambah $quantity ${flower.unit}.'
+                  : 'Stok ${flower.name} akan dikurangi $quantity ${flower.unit}.',
+              detail: isAdd
+                  ? 'Stok saat ini ${flower.stock} ${flower.unit}. Setelah ditambah: $finalStock ${flower.unit}.'
+                  : 'Stok saat ini ${flower.stock} ${flower.unit}. Setelah dikurangi: $finalStock ${flower.unit}.',
+              confirmLabel: isAdd ? 'Ya, Tambah' : 'Ya, Kurangi',
+            ),
+          ) ??
+          false;
+    }
+
+    final name = _nameCtrl.text.trim();
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _ConfirmStockDialog(
+            icon: Icons.local_florist_rounded,
+            color: AppTheme.primary,
+            title: 'Yakin tambah bunga baru?',
+            message:
+                '$name akan ditambahkan sebagai bunga baru dengan harga jual ${_rupiahFormatter.format(_rawPrice)}.',
+            detail: 'Kategori Bunga Potong, satuan tangkai.',
+            confirmLabel: 'Ya, Tambah',
+          ),
+        ) ??
+        false;
   }
 
   @override
@@ -222,20 +322,20 @@ class _AddStockSheetState extends State<AddStockSheet> {
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.inventory_2_rounded,
+                      child: Icon(
+                        _headerIcon,
                         color: Colors.white,
                         size: 22,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Kelola Stok',
-                            style: TextStyle(
+                            _sheetTitle,
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
                               fontFamily: 'Poppins',
@@ -243,10 +343,10 @@ class _AddStockSheetState extends State<AddStockSheet> {
                               letterSpacing: 0,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
-                            'Perbarui jumlah atau tambah bunga baru.',
-                            style: TextStyle(
+                            _sheetSubtitle,
+                            style: const TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w500,
                               fontFamily: 'Poppins',
@@ -271,14 +371,14 @@ class _AddStockSheetState extends State<AddStockSheet> {
                     children: [
                       _TabButton(
                         label: 'Tambah Jumlah',
-                        icon: Icons.add_box_outlined,
+                        icon: Icons.add_box_rounded,
                         isActive: _action == StockActionType.adjust,
                         onTap: () =>
                             setState(() => _action = StockActionType.adjust),
                       ),
                       _TabButton(
                         label: 'Bunga Baru',
-                        icon: Icons.local_florist_outlined,
+                        icon: Icons.local_florist_rounded,
                         isActive: _action == StockActionType.addNew,
                         onTap: () =>
                             setState(() => _action = StockActionType.addNew),
@@ -292,6 +392,12 @@ class _AddStockSheetState extends State<AddStockSheet> {
                   child: _action == StockActionType.adjust
                       ? _buildAdjustForm()
                       : _buildAddNewForm(),
+                ),
+                const SizedBox(height: 16),
+                _ActionSummaryCard(
+                  summary: _actionSummary,
+                  isAdjustMode: _isAdjustMode,
+                  isSubtract: _adjustType == 'subtract',
                 ),
                 const SizedBox(height: 22),
                 SizedBox(
@@ -319,9 +425,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
                             ),
                           )
                         : Text(
-                            _action == StockActionType.adjust
-                                ? 'Perbarui Stok'
-                                : 'Tambah Bunga',
+                            _submitLabel,
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -390,6 +494,7 @@ class _AddStockSheetState extends State<AddStockSheet> {
         TextFormField(
           controller: _quantityCtrl,
           keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() {}),
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: _inputDecoration('Jumlah', Icons.numbers_rounded),
           style: const TextStyle(fontFamily: 'Poppins'),
@@ -398,6 +503,11 @@ class _AddStockSheetState extends State<AddStockSheet> {
             final parsed = int.tryParse(value);
             if (parsed == null || parsed <= 0) {
               return 'Masukkan jumlah yang valid';
+            }
+            if (_adjustType == 'subtract' &&
+                _selectedFlower != null &&
+                parsed > _selectedFlower!.stock) {
+              return 'Jumlah melebihi stok saat ini';
             }
             return null;
           },
@@ -489,31 +599,18 @@ class _AddStockSheetState extends State<AddStockSheet> {
       children: [
         TextFormField(
           controller: _nameCtrl,
+          onChanged: (_) => setState(() {}),
           decoration: _inputDecoration('Nama bunga', Icons.local_florist),
           style: const TextStyle(fontFamily: 'Poppins'),
           validator: (value) =>
               value == null || value.trim().isEmpty ? 'Nama wajib diisi' : null,
         ),
         const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          initialValue: _selectedCategory,
-          decoration: _inputDecoration('Kategori', Icons.category_outlined),
-          items: _categories
-              .map(
-                (category) => DropdownMenuItem(
-                  value: category,
-                  child: Text(
-                    category,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: (value) => setState(() => _selectedCategory = value),
-          validator: (value) => value == null ? 'Pilih kategori' : null,
+        const _LockedInfoField(
+          label: 'Kategori',
+          value: 'Bunga Potong',
+          badge: 'Tetap',
+          icon: Icons.category_outlined,
         ),
         const SizedBox(height: 14),
         TextFormField(
@@ -531,25 +628,16 @@ class _AddStockSheetState extends State<AddStockSheet> {
               text: formatted,
               selection: TextSelection.collapsed(offset: formatted.length),
             );
+            setState(() {});
           },
           validator: (_) => _rawPrice <= 0 ? 'Harga wajib diisi' : null,
         ),
         const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          initialValue: _unit,
-          decoration: _inputDecoration('Satuan', Icons.straighten_rounded),
-          items: _units
-              .map(
-                (unit) => DropdownMenuItem(
-                  value: unit,
-                  child: Text(
-                    unit,
-                    style: const TextStyle(fontFamily: 'Poppins'),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: (value) => setState(() => _unit = value!),
+        const _LockedInfoField(
+          label: 'Satuan',
+          value: 'tangkai',
+          badge: 'Tetap',
+          icon: Icons.straighten_rounded,
         ),
       ],
     );
@@ -583,6 +671,329 @@ class _AddStockSheetState extends State<AddStockSheet> {
         borderSide: const BorderSide(color: AppTheme.error, width: 1.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+}
+
+class _ConfirmStockDialog extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String message;
+  final String detail;
+  final String confirmLabel;
+
+  const _ConfirmStockDialog({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.message,
+    required this.detail,
+    required this.confirmLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF5D1734).withValues(alpha: 0.18),
+              blurRadius: 30,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(icon, color: color, size: 23),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                height: 1.45,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.bgLight,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFF5C6D8)),
+              ),
+              child: Text(
+                detail,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondary,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                      foregroundColor: AppTheme.textSecondary,
+                      side: const BorderSide(color: Color(0xFFF5C6D8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: const Text(
+                      'Batal',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: Text(
+                      confirmLabel,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionSummaryCard extends StatelessWidget {
+  final String? summary;
+  final bool isAdjustMode;
+  final bool isSubtract;
+
+  const _ActionSummaryCard({
+    required this.summary,
+    required this.isAdjustMode,
+    required this.isSubtract,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSummary = summary != null;
+    final color = !hasSummary
+        ? AppTheme.textSecondary
+        : isAdjustMode
+            ? isSubtract
+                ? AppTheme.error
+                : AppTheme.success
+            : AppTheme.primary;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: color.withValues(alpha: hasSummary ? 0.22 : 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              hasSummary
+                  ? Icons.fact_check_rounded
+                  : Icons.info_outline_rounded,
+              size: 18,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ringkasan Aksi',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  summary ?? 'Lengkapi data agar ringkasan muncul.',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    color:
+                        hasSummary ? AppTheme.textPrimary : AppTheme.textHint,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LockedInfoField extends StatelessWidget {
+  final String label;
+  final String value;
+  final String badge;
+  final IconData icon;
+
+  const _LockedInfoField({
+    required this.label,
+    required this.value,
+    required this.badge,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF5C6D8)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 19,
+            color: AppTheme.textSecondary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppTheme.success.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              badge,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.success,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
