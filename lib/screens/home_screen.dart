@@ -47,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loadingSummary = true;
   DateTime? _lastUpdatedAt;
   Timer? _clockTimer;
+  OverlayEntry? _noticeEntry;
 
   final NumberFormat _numberFmt = NumberFormat.decimalPattern('id_ID');
 
@@ -61,6 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _noticeEntry?.remove();
+    _noticeEntry = null;
     _clockTimer?.cancel();
     super.dispose();
   }
@@ -108,13 +111,61 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$value tangkai';
   }
 
-  Future<void> _loadSummary({bool showLoading = false}) async {
+  bool get _isDataStale {
+    final updatedAt = _lastUpdatedAt;
+    if (updatedAt == null) return false;
+    return DateTime.now().difference(updatedAt).inMinutes >= 5;
+  }
+
+  Color _systemStatusColor(int lowStockCount) {
+    if (_summary == null && !_loadingSummary) return AppTheme.error;
+    if (_loadingSummary) return AppTheme.primary;
+    if (lowStockCount > 0 || _isDataStale) return AppTheme.warning;
+    return AppTheme.success;
+  }
+
+  String _systemStatusLabel(int lowStockCount) {
+    if (_summary == null && !_loadingSummary) return 'Server perlu dicek';
+    if (_loadingSummary) return 'Memuat data';
+    if (lowStockCount > 0) return 'Perlu restok';
+    if (_isDataStale) return 'Perlu refresh';
+    return 'Aman, stok terkendali';
+  }
+
+  void _showCenterNotice({
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color color,
+  }) {
+    _noticeEntry?.remove();
+    final entry = OverlayEntry(
+      builder: (context) => _CenterNotice(
+        title: title,
+        message: message,
+        icon: icon,
+        color: color,
+      ),
+    );
+    _noticeEntry = entry;
+
+    Overlay.of(context).insert(entry);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (_noticeEntry == entry) {
+        entry.remove();
+        _noticeEntry = null;
+      }
+    });
+  }
+
+  Future<bool> _loadSummary({bool showLoading = false}) async {
     if (showLoading && mounted) {
       setState(() {
         _loadingSummary = true;
       });
     }
 
+    var success = false;
     try {
       final resp = await ApiService.getDashboardSummary();
       if (mounted) {
@@ -123,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _lastUpdatedAt = DateTime.now();
         });
       }
+      success = true;
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -136,6 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+
+    return success;
   }
 
   Future<void> _retryDashboard() async {
@@ -146,7 +200,8 @@ class _HomeScreenState extends State<HomeScreen> {
     String greeting,
     String name,
     DateTime? lastUpdatedAt,
-    bool systemOk,
+    String systemStatus,
+    Color systemStatusColor,
   ) {
     return Container(
       decoration: BoxDecoration(
@@ -366,7 +421,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         lastUpdatedAt == null
                             ? 'Menunggu data terbaru'
-                            : 'Diperbarui ${_formatTime(lastUpdatedAt)}',
+                            : _isDataStale
+                                ? 'Diperbarui ${_formatTime(lastUpdatedAt)} - perlu refresh'
+                                : 'Diperbarui ${_formatTime(lastUpdatedAt)}',
                         style: const TextStyle(
                           fontSize: 10.5,
                           color: Color(0xFFC06B8F),
@@ -385,18 +442,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 7,
                           height: 7,
                           decoration: BoxDecoration(
-                            color: systemOk
-                                ? const Color(0xFF4CAF50)
-                                : AppTheme.error,
+                            color: systemStatusColor,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            systemOk
-                                ? 'Semua berjalan normal'
-                                : 'Server perlu dicek',
+                            systemStatus,
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 12,
@@ -434,7 +487,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final lowStockCount = _summaryInt('low_stock');
     final quickPredictions = predictions.predictions.take(3).toList();
-    final systemOk = _summary != null && !_loadingSummary;
+    final systemStatus = _systemStatusLabel(lowStockCount);
+    final systemStatusColor = _systemStatusColor(lowStockCount);
 
     return Scaffold(
       backgroundColor: AppTheme.bgLight,
@@ -459,9 +513,27 @@ class _HomeScreenState extends State<HomeScreen> {
               displacement: 36,
               edgeOffset: 8,
               onRefresh: () async {
-                await _loadSummary();
+                final summaryOk = await _loadSummary();
                 await stock.loadStocks(refresh: true);
                 await predictions.loadPredictions();
+                if (!mounted) return;
+
+                final allOk = summaryOk &&
+                    stock.errorMessage == null &&
+                    predictions.errorMessage == null;
+
+                _showCenterNotice(
+                  title: allOk
+                      ? 'Data beranda diperbarui'
+                      : 'Data belum bisa diperbarui',
+                  message: allOk
+                      ? 'Ringkasan toko sudah memakai data terbaru.'
+                      : 'Server toko belum bisa dijangkau. Coba lagi sebentar.',
+                  icon: allOk
+                      ? Icons.check_circle_rounded
+                      : Icons.cloud_off_rounded,
+                  color: allOk ? AppTheme.success : AppTheme.error,
+                );
               },
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(
@@ -474,15 +546,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     greeting,
                     auth.user?.name ?? 'Pengguna',
                     _lastUpdatedAt,
-                    systemOk,
+                    systemStatus,
+                    systemStatusColor,
                   ),
                   const SizedBox(height: 24),
 
                   if (_loadingSummary)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
+                    const _DashboardSkeleton()
                   else if (_summary == null)
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -511,7 +581,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(width: 12),
                           const Expanded(
                             child: Text(
-                              'Gagal memuat ringkasan dashboard. Periksa koneksi API backend.',
+                              'Server toko belum bisa dijangkau. Periksa koneksi atau coba lagi.',
                               style: TextStyle(
                                 fontSize: 12.5,
                                 height: 1.35,
@@ -554,6 +624,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icons.receipt_long,
                             color: const Color(0xFF3F51B5),
                             bgColor: const Color(0xFFE8EAF6),
+                            semanticsLabel: 'Buka riwayat transaksi',
                             onTap: widget.onNavigateToTransactions,
                           ),
                         ),
@@ -565,6 +636,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icons.local_florist,
                             color: const Color(0xFF4CAF50),
                             bgColor: const Color(0xFFE8F5E9),
+                            semanticsLabel: 'Buka stok bunga',
                             onTap: widget.onNavigateToStock,
                           ),
                         ),
@@ -580,6 +652,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icons.auto_graph,
                             color: const Color(0xFF9C27B0),
                             bgColor: const Color(0xFFF3E5F5),
+                            semanticsLabel: 'Buka prediksi penjualan',
                             onTap: widget.onNavigateToPrediksi,
                           ),
                         ),
@@ -595,6 +668,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             bgColor: lowStockCount > 0
                                 ? const Color(0xFFFBE9E7)
                                 : const Color(0xFFE8F5E9),
+                            semanticsLabel: lowStockCount > 0
+                                ? 'Buka stok kritis'
+                                : 'Buka stok bunga',
                             onTap: lowStockCount > 0
                                 ? widget.onNavigateToLowStock
                                 : widget.onNavigateToStock,
@@ -604,71 +680,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
 
-                  // Low stock alert
-                  if (!_loadingSummary &&
-                      _summary != null &&
-                      lowStockCount > 0) ...[
+                  // Low stock status
+                  if (!_loadingSummary && _summary != null) ...[
                     const SizedBox(height: 20),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: widget.onNavigateToLowStock,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Ink(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 13,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.warning.withValues(alpha: 0.13),
-                                Colors.white.withValues(alpha: 0.78),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppTheme.warning.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.warning_amber_rounded,
-                                  color: AppTheme.warning,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  '$lowStockCount bunga hampir habis. Segera restok!',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.textPrimary,
-                                    fontFamily: 'Poppins',
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: Color(0xFFC68A14),
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    _StockStatusBanner(
+                      count: lowStockCount,
+                      onTap: lowStockCount > 0
+                          ? widget.onNavigateToLowStock
+                          : widget.onNavigateToStock,
                     ),
                   ],
 
@@ -725,12 +744,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
                       child: predictions.isLoading
-                          ? const _PredictionStateRow(
-                              icon: Icons.sync_rounded,
-                              title: 'Memuat prediksi terbaru',
-                              subtitle: 'Mengambil data dari server toko.',
-                              color: AppTheme.primary,
-                            )
+                          ? const _PredictionSkeleton()
                           : predictions.errorMessage != null
                               ? _PredictionStateRow(
                                   icon: Icons.cloud_off_rounded,
@@ -766,7 +780,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                               name: pred.flowerName,
                                               icon: Icons.local_florist_rounded,
                                               iconColor: color,
-                                              status: 'Prediksi',
+                                              subtitle:
+                                                  'Perkiraan kebutuhan hari ini',
+                                              status: 'Siapkan',
                                               statusColor: AppTheme.success,
                                               detail:
                                                   _formatPredictionDetail(pred),
@@ -795,6 +811,245 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+class _CenterNotice extends StatelessWidget {
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color color;
+
+  const _CenterNotice({
+    required this.title,
+    required this.message,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: SafeArea(
+          child: Center(
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              tween: Tween(begin: 0, end: 1),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.scale(
+                    scale: 0.96 + (value * 0.04),
+                    child: child,
+                  ),
+                );
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: MediaQuery.of(context).size.width - 48,
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color.withValues(alpha: 0.28)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF5D1734).withValues(alpha: 0.16),
+                        blurRadius: 26,
+                        offset: const Offset(0, 14),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(icon, color: color, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w900,
+                                color: AppTheme.textPrimary,
+                                fontFamily: 'Poppins',
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              message,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                height: 1.35,
+                                fontWeight: FontWeight.w500,
+                                color: AppTheme.textSecondary,
+                                fontFamily: 'Poppins',
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockStatusBanner extends StatelessWidget {
+  final int count;
+  final VoidCallback? onTap;
+
+  const _StockStatusBanner({
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCriticalStock = count > 0;
+    final color = hasCriticalStock ? AppTheme.warning : AppTheme.success;
+    final icon = hasCriticalStock
+        ? Icons.warning_amber_rounded
+        : Icons.check_circle_outline_rounded;
+    final text = hasCriticalStock
+        ? '$count jenis bunga stok kritis. Cek sekarang.'
+        : 'Tidak ada stok kritis saat ini.';
+
+    return Semantics(
+      button: true,
+      label: hasCriticalStock ? 'Buka daftar stok kritis' : 'Buka stok bunga',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: hasCriticalStock ? 0.13 : 0.11),
+                  Colors.white.withValues(alpha: 0.78),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: color.withValues(alpha: 0.82),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardSkeleton extends StatelessWidget {
+  const _DashboardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _SkeletonPulse(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _StatSkeletonCard()),
+              SizedBox(width: 12),
+              Expanded(child: _StatSkeletonCard()),
+            ],
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _StatSkeletonCard()),
+              SizedBox(width: 12),
+              Expanded(child: _StatSkeletonCard()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatSkeletonCard extends StatelessWidget {
+  const _StatSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.74)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SkeletonBox(width: 36, height: 36, radius: 12),
+          SizedBox(height: 12),
+          _SkeletonBox(width: 76, height: 18, radius: 8),
+          SizedBox(height: 8),
+          _SkeletonBox(width: 92, height: 11, radius: 6),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   final String label;
   final String value;
@@ -802,6 +1057,7 @@ class _StatCard extends StatelessWidget {
   final Color color;
   final Color bgColor;
   final VoidCallback? onTap;
+  final String? semanticsLabel;
 
   const _StatCard({
     required this.label,
@@ -809,92 +1065,97 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.bgColor,
+    this.semanticsLabel,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                bgColor,
-                Colors.white.withValues(alpha: 0.74),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.74)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 112),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.62),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.1),
-                          ),
-                        ),
-                        child: Icon(icon, size: 18, color: color),
-                      ),
-                      if (onTap != null) ...[
-                        const Spacer(),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
-                          color: color.withValues(alpha: 0.42),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: color,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 0,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 0,
-                    ),
-                  ),
+    return Semantics(
+      button: onTap != null,
+      label: semanticsLabel ?? '$label, $value',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  bgColor,
+                  Colors.white.withValues(alpha: 0.74),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.74)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.08),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 112),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: color.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: Icon(icon, size: 18, color: color),
+                        ),
+                        if (onTap != null) ...[
+                          const Spacer(),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 18,
+                            color: color.withValues(alpha: 0.42),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: color,
+                        fontFamily: 'Poppins',
+                        letterSpacing: 0,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                        fontFamily: 'Poppins',
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -992,8 +1253,136 @@ class _PredictionStateRow extends StatelessWidget {
   }
 }
 
+class _PredictionSkeleton extends StatelessWidget {
+  const _PredictionSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _SkeletonPulse(
+      child: Column(
+        children: [
+          _PredictionSkeletonRow(),
+          Divider(
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+            color: AppTheme.border,
+          ),
+          _PredictionSkeletonRow(),
+          Divider(
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+            color: AppTheme.border,
+          ),
+          _PredictionSkeletonRow(),
+        ],
+      ),
+    );
+  }
+}
+
+class _PredictionSkeletonRow extends StatelessWidget {
+  const _PredictionSkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(
+        children: [
+          _SkeletonBox(width: 42, height: 42, radius: 21),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SkeletonBox(width: 92, height: 13, radius: 7),
+                SizedBox(height: 7),
+                _SkeletonBox(width: 132, height: 10, radius: 6),
+              ],
+            ),
+          ),
+          SizedBox(width: 10),
+          _SkeletonBox(width: 62, height: 24, radius: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonPulse extends StatefulWidget {
+  final Widget child;
+
+  const _SkeletonPulse({required this.child});
+
+  @override
+  State<_SkeletonPulse> createState() => _SkeletonPulseState();
+}
+
+class _SkeletonPulseState extends State<_SkeletonPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.58, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(opacity: _opacity, child: widget.child);
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _SkeletonBox({
+    required this.width,
+    required this.height,
+    required this.radius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFFFD9E8).withValues(alpha: 0.72),
+            Colors.white.withValues(alpha: 0.88),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
 class _PredictionRow extends StatelessWidget {
   final String name;
+  final String? subtitle;
   final IconData icon;
   final Color iconColor;
   final String status;
@@ -1002,6 +1391,7 @@ class _PredictionRow extends StatelessWidget {
 
   const _PredictionRow({
     required this.name,
+    this.subtitle,
     required this.icon,
     required this.iconColor,
     required this.status,
@@ -1033,17 +1423,37 @@ class _PredictionRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                color: AppTheme.textPrimary,
-                fontFamily: 'Poppins',
-                letterSpacing: 0,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: AppTheme.textPrimary,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 0,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
           ),
           Container(
