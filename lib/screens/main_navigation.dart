@@ -163,6 +163,13 @@ class _MainNavigationState extends State<MainNavigation> {
 
             // Saat user menekan menu bawah, update index halaman aktif.
             onTap: (index) {
+              if (index == 2) {
+                final stock = context.read<StockProvider>();
+                stock.search('');
+                stock.toggleLowStockFilter(false);
+                stock.filterByCategory(null);
+              }
+
               setState(() {
                 if (index == 2) _transactionInitialTab = 0;
                 _currentIndex = index;
