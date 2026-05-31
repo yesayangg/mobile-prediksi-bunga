@@ -1,6 +1,16 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../models/transaction.dart';
 import '../theme/app_theme.dart';
@@ -18,6 +28,8 @@ class _NoStretchScrollBehavior extends MaterialScrollBehavior {
   }
 }
 
+enum _HistoryFilter { all, today, mine }
+
 class TransactionHistoryTab extends StatefulWidget {
   final NumberFormat currencyFmt;
   const TransactionHistoryTab({super.key, required this.currencyFmt});
@@ -28,6 +40,7 @@ class TransactionHistoryTab extends StatefulWidget {
 
 class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
   final _dateFmt = DateFormat('dd MMM yyyy, HH:mm', 'id_ID');
+  _HistoryFilter _activeFilter = _HistoryFilter.all;
 
   @override
   void initState() {
@@ -53,6 +66,7 @@ class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
   @override
   Widget build(BuildContext context) {
     final txProvider = context.watch<TransactionProvider>();
+    final currentUser = context.watch<AuthProvider>().user;
 
     if (txProvider.isLoading) {
       return const _HistorySkeletonList();
@@ -78,109 +92,423 @@ class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
       );
     }
 
-    return ListView.builder(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: ClampingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
-      itemCount: txProvider.transactions.length,
-      itemBuilder: (_, i) {
-        final tx = txProvider.transactions[i];
-        return InkWell(
-          onTap: () => _showDetail(context, tx),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF5C6D8)),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primary.withValues(alpha: 0.05),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
+    final filtered =
+        _filteredTransactions(txProvider.transactions, currentUser);
+
+    return Column(
+      children: [
+        _HistoryFilterBar(
+          activeFilter: _activeFilter,
+          allCount: txProvider.transactions.length,
+          todayCount: _todayTransactions(txProvider.transactions).length,
+          mineCount: _mineTransactions(
+            txProvider.transactions,
+            currentUser,
+          ).length,
+          onRefresh: () =>
+              context.read<TransactionProvider>().loadTransactions(),
+          onChanged: (filter) => setState(() => _activeFilter = filter),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? _HistoryStatePanel(
+                  icon: Icons.receipt_long_outlined,
+                  color: AppTheme.primary,
+                  title: _activeFilter == _HistoryFilter.mine
+                      ? 'Belum ada transaksi dari akun ini'
+                      : 'Belum ada transaksi hari ini',
+                  subtitle: _activeFilter == _HistoryFilter.mine
+                      ? 'Transaksi yang cocok dengan akun kasir ini akan muncul di sini.'
+                      : 'Transaksi semua kasir yang bertanggal hari ini akan muncul di sini.',
+                )
+              : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: ClampingScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final tx = filtered[i];
+                    return _HistoryCard(
+                      tx: tx,
+                      currencyFmt: widget.currencyFmt,
+                      dateFmt: _dateFmt,
+                      onTap: () => _showDetail(context, tx),
+                    );
+                  },
                 ),
-              ],
+        ),
+      ],
+    );
+  }
+
+  List<Transaction> _filteredTransactions(
+    List<Transaction> transactions,
+    currentUser,
+  ) {
+    switch (_activeFilter) {
+      case _HistoryFilter.today:
+        return _todayTransactions(transactions);
+      case _HistoryFilter.mine:
+        return _mineTransactions(transactions, currentUser);
+      case _HistoryFilter.all:
+        return transactions;
+    }
+  }
+
+  List<Transaction> _todayTransactions(List<Transaction> transactions) {
+    final now = DateTime.now();
+    return transactions.where((tx) {
+      final local = tx.createdAt.toLocal();
+      return local.year == now.year &&
+          local.month == now.month &&
+          local.day == now.day;
+    }).toList();
+  }
+
+  List<Transaction> _mineTransactions(
+    List<Transaction> transactions,
+    currentUser,
+  ) {
+    if (currentUser == null) return [];
+
+    final currentId = currentUser.id.toString();
+    final currentName = currentUser.name.toString().trim().toLowerCase();
+
+    return transactions.where((tx) {
+      final txId = tx.cashierId.trim();
+      final txName = tx.cashierName.trim().toLowerCase();
+      return txId == currentId ||
+          (currentName.isNotEmpty && txName == currentName);
+    }).toList();
+  }
+}
+
+class _HistoryFilterBar extends StatelessWidget {
+  final _HistoryFilter activeFilter;
+  final int allCount;
+  final int todayCount;
+  final int mineCount;
+  final Future<void> Function() onRefresh;
+  final ValueChanged<_HistoryFilter> onChanged;
+
+  const _HistoryFilterBar({
+    required this.activeFilter,
+    required this.allCount,
+    required this.todayCount,
+    required this.mineCount,
+    required this.onRefresh,
+    required this.onChanged,
+  });
+
+  String get _helperText {
+    switch (activeFilter) {
+      case _HistoryFilter.all:
+        return 'Menampilkan semua riwayat transaksi dari backend.';
+      case _HistoryFilter.today:
+        return 'Menampilkan transaksi semua kasir yang bertanggal hari ini.';
+      case _HistoryFilter.mine:
+        return 'Menampilkan transaksi yang cocok dengan akun kasir yang sedang masuk.';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Filter Riwayat',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              Semantics(
+                button: true,
+                label: 'Perbarui riwayat transaksi',
+                child: InkWell(
+                  onTap: onRefresh,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFF5C6D8)),
+                    ),
+                    child: const Icon(
+                      Icons.refresh_rounded,
+                      size: 20,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFF5C6D8)),
             ),
             child: Row(
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: AppTheme.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.receipt_long_rounded,
-                    color: AppTheme.success,
-                    size: 22,
-                  ),
+                _HistoryFilterChip(
+                  label: 'Semua',
+                  count: allCount,
+                  selected: activeFilter == _HistoryFilter.all,
+                  onTap: () => onChanged(_HistoryFilter.all),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tx.invoiceNumber,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
-                          color: AppTheme.textPrimary,
-                          fontFamily: 'Poppins',
-                          letterSpacing: 0,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _dateFmt.format(tx.createdAt.toLocal()),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary,
-                          fontFamily: 'Poppins',
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(width: 5),
+                _HistoryFilterChip(
+                  label: 'Hari Ini',
+                  count: todayCount,
+                  selected: activeFilter == _HistoryFilter.today,
+                  onTap: () => onChanged(_HistoryFilter.today),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      widget.currencyFmt.format(tx.grandTotal),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        color: AppTheme.primary,
-                        fontFamily: 'Poppins',
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      tx.paymentMethod.label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textSecondary,
-                        fontFamily: 'Poppins',
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 5),
+                _HistoryFilterChip(
+                  label: 'Transaksi Saya',
+                  count: mineCount,
+                  selected: activeFilter == _HistoryFilter.mine,
+                  onTap: () => onChanged(_HistoryFilter.mine),
                 ),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 15,
+                  color: AppTheme.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _helperText,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 10.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryFilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _HistoryFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 42,
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 9.6,
+                    fontWeight: FontWeight.w900,
+                    color: selected ? Colors.white : AppTheme.textSecondary,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.18)
+                      : AppTheme.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : count.toString(),
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    color: selected ? Colors.white : AppTheme.primary,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  final Transaction tx;
+  final NumberFormat currencyFmt;
+  final DateFormat dateFmt;
+  final VoidCallback onTap;
+
+  const _HistoryCard({
+    required this.tx,
+    required this.currencyFmt,
+    required this.dateFmt,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFF5C6D8)),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppTheme.success.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.receipt_long_rounded,
+                color: AppTheme.success,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tx.invoiceNumber,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      color: AppTheme.textPrimary,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    dateFmt.format(tx.createdAt.toLocal()),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  currencyFmt.format(tx.grandTotal),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    color: AppTheme.primary,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tx.paymentMethod.label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textSecondary,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -359,6 +687,269 @@ class _TransactionDetailSheet extends StatelessWidget {
     required this.dateFmt,
   });
 
+  String get _fileBaseName {
+    final cleaned = tx.invoiceNumber
+        .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    return 'florashop_$cleaned';
+  }
+
+  String get _cashierName =>
+      tx.cashierName.trim().isEmpty || tx.cashierName == '-'
+          ? 'Kasir'
+          : tx.cashierName;
+
+  Future<Uint8List> _buildPdfBytes() async {
+    final doc = pw.Document();
+    final pink = PdfColor.fromHex('#E21666');
+    final dark = PdfColor.fromHex('#4B1528');
+    final muted = PdfColor.fromHex('#9F6079');
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.all(14),
+        build: (context) => [
+          pw.Center(
+            child: pw.Column(
+              children: [
+                pw.Text(
+                  'FLORASHOP',
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                    color: pink,
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  'Struk transaksi kasir',
+                  style: pw.TextStyle(fontSize: 9, color: muted),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          _pdfInfoRow('Invoice', tx.invoiceNumber, dark, muted),
+          _pdfInfoRow(
+              'Tanggal', dateFmt.format(tx.createdAt.toLocal()), dark, muted),
+          _pdfInfoRow('Kasir', _cashierName, dark, muted),
+          _pdfInfoRow('Bayar', tx.paymentMethod.label, dark, muted),
+          pw.Divider(color: PdfColor.fromHex('#F0B5CC')),
+          pw.SizedBox(height: 6),
+          ...tx.items.map((item) {
+            return pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    item.flowerName,
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: dark,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          '${item.quantity} x ${currencyFmt.format(item.unitPrice)}',
+                          style: pw.TextStyle(fontSize: 8.5, color: muted),
+                        ),
+                      ),
+                      pw.Text(
+                        currencyFmt.format(item.subtotal),
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                          color: dark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+          pw.Divider(color: PdfColor.fromHex('#F0B5CC')),
+          _pdfInfoRow(
+              'Subtotal', currencyFmt.format(tx.totalAmount), dark, muted),
+          if (tx.paymentMethod == PaymentMethod.cash) ...[
+            _pdfInfoRow(
+                'Dibayar', currencyFmt.format(tx.amountPaid), dark, muted),
+            _pdfInfoRow(
+                'Kembalian', currencyFmt.format(tx.change), dark, muted),
+          ],
+          pw.SizedBox(height: 8),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(vertical: 8),
+            decoration: pw.BoxDecoration(
+              border: pw.Border(
+                top: pw.BorderSide(color: PdfColor.fromHex('#F0B5CC')),
+                bottom: pw.BorderSide(color: PdfColor.fromHex('#F0B5CC')),
+              ),
+            ),
+            child: _pdfInfoRow(
+              'TOTAL',
+              currencyFmt.format(tx.grandTotal),
+              pink,
+              dark,
+              total: true,
+            ),
+          ),
+          if (tx.note != null && tx.note!.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Text('Catatan: ${tx.note}',
+                style: pw.TextStyle(fontSize: 8.5, color: muted)),
+          ],
+          pw.SizedBox(height: 14),
+          pw.Center(
+            child: pw.Text(
+              'Terima kasih',
+              style: pw.TextStyle(fontSize: 9, color: muted),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  pw.Widget _pdfInfoRow(
+    String label,
+    String value,
+    PdfColor valueColor,
+    PdfColor labelColor, {
+    bool total = false,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 5),
+      child: pw.Row(
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: total ? 10 : 8.5,
+              fontWeight: total ? pw.FontWeight.bold : pw.FontWeight.normal,
+              color: labelColor,
+            ),
+          ),
+          pw.Spacer(),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: total ? 11 : 8.5,
+              fontWeight: pw.FontWeight.bold,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<File> _writePdfFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/$_fileBaseName.pdf');
+    await file.writeAsBytes(await _buildPdfBytes(), flush: true);
+    return file;
+  }
+
+  Future<File> _writePngFile() async {
+    final bytes = await _buildPdfBytes();
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/$_fileBaseName.png');
+
+    await for (final page in Printing.raster(bytes, pages: [0], dpi: 180)) {
+      final png = await page.toPng();
+      await file.writeAsBytes(png, flush: true);
+      break;
+    }
+
+    return file;
+  }
+
+  Future<void> _printReceipt(BuildContext context) async {
+    try {
+      final bytes = await _buildPdfBytes();
+      await Printing.layoutPdf(
+        name: tx.invoiceNumber,
+        onLayout: (_) async => bytes,
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      _showActionMessage(context, 'Struk belum bisa dicetak.');
+    }
+  }
+
+  Future<void> _savePdf(BuildContext context) async {
+    try {
+      final file = await _writePdfFile();
+      if (!context.mounted) return;
+      _showActionMessage(context, 'PDF struk tersimpan: ${file.path}');
+    } catch (_) {
+      if (!context.mounted) return;
+      _showActionMessage(context, 'PDF struk belum bisa disimpan.');
+    }
+  }
+
+  Future<void> _saveImage(BuildContext context) async {
+    try {
+      final file = await _writePngFile();
+      if (!context.mounted) return;
+      _showActionMessage(context, 'Gambar struk tersimpan: ${file.path}');
+    } catch (_) {
+      if (!context.mounted) return;
+      _showActionMessage(context, 'Gambar struk belum bisa disimpan.');
+    }
+  }
+
+  Future<void> _shareReceipt(BuildContext context,
+      {required bool image}) async {
+    try {
+      final file = image ? await _writePngFile() : await _writePdfFile();
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Struk transaksi FLORASHOP ${tx.invoiceNumber}',
+          files: [XFile(file.path)],
+          subject: 'Struk FLORASHOP ${tx.invoiceNumber}',
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      _showActionMessage(context, 'Struk belum bisa dibagikan.');
+    }
+  }
+
+  void _showActionMessage(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  void _showReceiptActions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReceiptActionSheet(
+        onPrint: () => _printReceipt(context),
+        onSavePdf: () => _savePdf(context),
+        onSaveImage: () => _saveImage(context),
+        onSharePdf: () => _shareReceipt(context, image: false),
+        onShareImage: () => _shareReceipt(context, image: true),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -390,170 +981,619 @@ class _TransactionDetailSheet extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: const Icon(
-                      Icons.receipt_long_rounded,
-                      color: AppTheme.primary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Detail Transaksi',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: AppTheme.textPrimary,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.success.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: AppTheme.success.withValues(alpha: 0.14),
+                  const Expanded(
+                    child: Text(
+                      'Detail Struk',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: 0,
                       ),
                     ),
-                    child: Text(
-                      tx.paymentMethod.label,
-                      style: const TextStyle(
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _showReceiptActions(context),
+                    icon: const Icon(Icons.ios_share_rounded, size: 17),
+                    label: const Text('Bagikan/Simpan'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.primary,
+                      minimumSize: const Size(44, 40),
+                      textStyle: const TextStyle(
+                        fontFamily: 'Poppins',
                         fontSize: 11,
                         fontWeight: FontWeight.w900,
-                        color: AppTheme.success,
-                        fontFamily: 'Poppins',
                         letterSpacing: 0,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                tx.invoiceNumber,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Poppins',
-                ),
-              ),
-              Text(
-                dateFmt.format(tx.createdAt.toLocal()),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Poppins',
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Item',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  color: AppTheme.textPrimary,
-                  fontFamily: 'Poppins',
-                  letterSpacing: 0,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...tx.items.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.94),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFF5C6D8)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.flowerName,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.textPrimary,
-                              fontFamily: 'Poppins',
-                              letterSpacing: 0,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          '${item.quantity}x ${currencyFmt.format(item.unitPrice)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSecondary,
-                            fontFamily: 'Poppins',
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          currencyFmt.format(item.subtotal),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.primary,
-                            fontFamily: 'Poppins',
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              _DetailRow(
-                label: 'Total',
-                value: currencyFmt.format(tx.grandTotal),
-                isTotal: true,
-              ),
-              if (tx.paymentMethod == PaymentMethod.cash) ...[
-                const SizedBox(height: 4),
-                _DetailRow(
-                  label: 'Dibayar',
-                  value: currencyFmt.format(tx.amountPaid),
-                ),
-                const SizedBox(height: 4),
-                _DetailRow(
-                  label: 'Kembalian',
-                  value: currencyFmt.format(tx.change),
-                  valueColor: AppTheme.success,
-                ),
-              ],
-              if (tx.note != null && tx.note!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Catatan: ${tx.note}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-              ],
+              const SizedBox(height: 10),
+              _ReceiptCard(tx: tx, currencyFmt: currencyFmt, dateFmt: dateFmt),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _ReceiptActionSheet extends StatelessWidget {
+  final Future<void> Function() onPrint;
+  final Future<void> Function() onSavePdf;
+  final Future<void> Function() onSaveImage;
+  final Future<void> Function() onSharePdf;
+  final Future<void> Function() onShareImage;
+
+  const _ReceiptActionSheet({
+    required this.onPrint,
+    required this.onSavePdf,
+    required this.onSaveImage,
+    required this.onSharePdf,
+    required this.onShareImage,
+  });
+
+  void _run(BuildContext context, Future<void> Function() action) {
+    Navigator.of(context).pop();
+    action();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.86;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFF7FB),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: ScrollConfiguration(
+          behavior: const _NoStretchScrollBehavior(),
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              MediaQuery.of(context).padding.bottom + 18,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0B5CC),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Bagikan atau Simpan Struk',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Pilih format struk sesuai kebutuhan kasir.',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _ReceiptActionTile(
+                  icon: Icons.print_rounded,
+                  title: 'Cetak Struk',
+                  subtitle: 'Kirim ke printer yang tersedia di perangkat.',
+                  onTap: () => _run(context, onPrint),
+                ),
+                _ReceiptActionTile(
+                  icon: Icons.picture_as_pdf_rounded,
+                  title: 'Simpan PDF',
+                  subtitle: 'Simpan struk sebagai file PDF.',
+                  onTap: () => _run(context, onSavePdf),
+                ),
+                _ReceiptActionTile(
+                  icon: Icons.image_rounded,
+                  title: 'Simpan Gambar',
+                  subtitle: 'Simpan struk sebagai gambar siap dikirim.',
+                  onTap: () => _run(context, onSaveImage),
+                ),
+                _ReceiptActionTile(
+                  icon: Icons.ios_share_rounded,
+                  title: 'Bagikan PDF',
+                  subtitle:
+                      'Buka pilihan berbagi, termasuk WhatsApp jika tersedia.',
+                  onTap: () => _run(context, onSharePdf),
+                ),
+                _ReceiptActionTile(
+                  icon: Icons.chat_bubble_rounded,
+                  title: 'Bagikan Gambar',
+                  subtitle: 'Cocok untuk dikirim sebagai foto struk.',
+                  onTap: () => _run(context, onShareImage),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReceiptActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ReceiptActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFF5C6D8)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 9),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(icon, color: AppTheme.primary, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10.5,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReceiptCard extends StatelessWidget {
+  final Transaction tx;
+  final NumberFormat currencyFmt;
+  final DateFormat dateFmt;
+
+  const _ReceiptCard({
+    required this.tx,
+    required this.currencyFmt,
+    required this.dateFmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cashierName = tx.cashierName.trim().isEmpty || tx.cashierName == '-'
+        ? 'Kasir'
+        : tx.cashierName;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF5C6D8)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFB11E5C).withValues(alpha: 0.1),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF5D1734),
+                  Color(0xFFC51661),
+                  Color(0xFFE8185A),
+                ],
+                stops: [0, 0.52, 1],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.local_florist_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'FLORASHOP',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Struk transaksi kasir',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFFFD9EA),
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      child: Text(
+                        tx.paymentMethod.label,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _ReceiptMetaRow(label: 'Invoice', value: tx.invoiceNumber),
+                const SizedBox(height: 6),
+                _ReceiptMetaRow(
+                  label: 'Tanggal',
+                  value: dateFmt.format(tx.createdAt.toLocal()),
+                ),
+                const SizedBox(height: 6),
+                _ReceiptMetaRow(label: 'Kasir', value: cashierName),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Item Dibeli',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...tx.items.map(
+                  (item) => _ReceiptItemRow(
+                    item: item,
+                    currencyFmt: currencyFmt,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const _ReceiptDivider(),
+                const SizedBox(height: 12),
+                _DetailRow(
+                  label: 'Subtotal',
+                  value: currencyFmt.format(tx.totalAmount),
+                ),
+                const SizedBox(height: 8),
+                _DetailRow(
+                  label: 'Metode bayar',
+                  value: tx.paymentMethod.label,
+                ),
+                if (tx.paymentMethod == PaymentMethod.cash) ...[
+                  const SizedBox(height: 8),
+                  _DetailRow(
+                    label: 'Dibayar',
+                    value: currencyFmt.format(tx.amountPaid),
+                  ),
+                  const SizedBox(height: 8),
+                  _DetailRow(
+                    label: 'Kembalian',
+                    value: currencyFmt.format(tx.change),
+                    valueColor: AppTheme.success,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.14),
+                    ),
+                  ),
+                  child: _DetailRow(
+                    label: 'Total',
+                    value: currencyFmt.format(tx.grandTotal),
+                    isTotal: true,
+                  ),
+                ),
+                if (tx.note != null && tx.note!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Catatan: ${tx.note}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptMetaRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ReceiptMetaRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 64,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.72),
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReceiptItemRow extends StatelessWidget {
+  final TransactionItem item;
+  final NumberFormat currencyFmt;
+
+  const _ReceiptItemRow({required this.item, required this.currencyFmt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.bgLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF5C6D8)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.local_florist_rounded,
+              color: AppTheme.primary,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.flowerName,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${item.quantity} x ${currencyFmt.format(item.unitPrice)}',
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            currencyFmt.format(item.subtotal),
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12.5,
+              fontWeight: FontWeight.w900,
+              color: AppTheme.primary,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptDivider extends StatelessWidget {
+  const _ReceiptDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedLinePainter(),
+      child: const SizedBox(width: double.infinity, height: 1),
+    );
+  }
+}
+
+class _DashedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFF0B5CC)
+      ..strokeWidth = 1;
+
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, 0), Offset(startX + 6, 0), paint);
+      startX += 10;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _DetailRow extends StatelessWidget {

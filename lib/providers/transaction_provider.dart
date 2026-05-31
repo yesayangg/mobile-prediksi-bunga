@@ -171,7 +171,7 @@ class TransactionProvider extends ChangeNotifier {
         endDate: end,
       );
 
-      final List items = response['data'] as List;
+      final items = response['data'] as List;
 
       // Group by invoice_number karena backend return flat per item
       final Map<String, List> grouped = {};
@@ -186,30 +186,41 @@ class TransactionProvider extends ChangeNotifier {
         final first = rows.first;
 
         final txItems = rows.map((r) {
-          final qty = (r['quantity'] ?? r['jumlah'] ?? 1) as num;
-          final price = (r['unit_price'] ?? r['harga'] ?? 0) as num;
+          final qty = _numberValue(r['quantity'] ?? r['jumlah'] ?? 1);
+          var price = _numberValue(r['unit_price'] ?? r['harga'] ?? 0);
+          final rowTotal = _numberValue(r['grand_total'] ?? r['total_amount']);
+          if (price > 0 && price < 1000 && rowTotal >= 1000) {
+            price *= 1000;
+          }
+
           return TransactionItem(
-            flowerId: r['flower_id'] ?? 0,
+            flowerId: _intValue(r['flower_id'] ?? r['product_id'] ?? 0),
             flowerName: r['flower_name'] ?? r['nama_bunga'] ?? '',
             quantity: qty.toInt(),
-            unitPrice: price.toDouble(),
-            subtotal: (price * qty).toDouble(),
+            unitPrice: price,
+            subtotal: price * qty,
           );
         }).toList();
 
-        final grandTotal =
-            (first['grand_total'] ?? first['total_amount'] ?? 0) as num;
-        final amountPaid = (first['amount_paid'] ?? grandTotal) as num;
-        final changeVal = (first['change'] ?? 0) as num;
+        final itemTotal = txItems.fold<double>(
+          0,
+          (sum, item) => sum + item.subtotal,
+        );
+        final serverTotal = _numberValue(
+          first['grand_total'] ?? first['total_amount'] ?? 0,
+        );
+        final grandTotal = serverTotal > 0 ? serverTotal : itemTotal;
+        final amountPaid = _numberValue(first['amount_paid'] ?? grandTotal);
+        final changeVal = _numberValue(first['change'] ?? 0);
 
         return Transaction(
           id: first['id'],
           invoiceNumber: entry.key,
           items: txItems,
-          totalAmount: grandTotal.toDouble(),
-          grandTotal: grandTotal.toDouble(),
-          amountPaid: amountPaid.toDouble(),
-          change: changeVal.toDouble(),
+          totalAmount: grandTotal,
+          grandTotal: grandTotal,
+          amountPaid: amountPaid,
+          change: changeVal,
           paymentMethod: PaymentMethod.values.firstWhere(
             (e) => e.name == first['payment_method'],
             orElse: () => PaymentMethod.cash,
@@ -217,7 +228,7 @@ class TransactionProvider extends ChangeNotifier {
           note: first['note'],
           cashierId: first['cashier_id']?.toString() ?? '-',
           cashierName: first['cashier_name'] ?? '-',
-          createdAt: DateTime.parse(first['created_at']),
+          createdAt: _transactionDate(first),
         );
       }).toList();
     } catch (e) {
@@ -226,5 +237,37 @@ class TransactionProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  double _numberValue(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(',', '')) ?? 0;
+    }
+    return 0;
+  }
+
+  int _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  DateTime _transactionDate(dynamic row) {
+    if (row is! Map) return DateTime.now();
+
+    final source = row['source']?.toString().trim().toLowerCase();
+    final value = source == 'mobile'
+        ? (row['created_at'] ?? row['tanggal'] ?? row['date'])
+        : (row['tanggal'] ?? row['date'] ?? row['created_at']);
+
+    if (value is DateTime) return value;
+    if (value != null) {
+      final parsed = DateTime.tryParse(value.toString());
+      if (parsed != null) return parsed;
+    }
+
+    return DateTime.now();
   }
 }
