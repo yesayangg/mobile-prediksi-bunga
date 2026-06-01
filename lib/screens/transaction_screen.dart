@@ -69,6 +69,16 @@ String _friendlyTransactionError(String? message) {
   return 'Transaksi belum bisa diproses. Periksa data lalu coba lagi.';
 }
 
+bool _isPaymentMethodInDevelopment(PaymentMethod method) {
+  return method == PaymentMethod.qris ||
+      method == PaymentMethod.transfer ||
+      method == PaymentMethod.debit;
+}
+
+String _paymentDevelopmentMessage(PaymentMethod method) {
+  return '${method.label} masih dalam masa pengembangan. Silakan pakai Tunai atau hubungi admin.';
+}
+
 class TransactionScreen extends StatefulWidget {
   final int initialTab;
   final VoidCallback? onOpenStock;
@@ -1566,6 +1576,22 @@ class _CheckoutSheet extends StatelessWidget {
     });
   }
 
+  void _showPaymentDevelopmentNotice(
+    BuildContext context,
+    PaymentMethod method,
+  ) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(_paymentDevelopmentMessage(method)),
+          backgroundColor: AppTheme.warning,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final txProvider = context.watch<TransactionProvider>();
@@ -1752,14 +1778,25 @@ class _CheckoutSheet extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: PaymentMethod.values.map((method) {
+                      final inDevelopment =
+                          _isPaymentMethodInDevelopment(method);
+
                       return SizedBox(
                         width: itemWidth,
                         child: _PaymentMethodOption(
                           method: method,
                           selected: txProvider.paymentMethod == method,
-                          onTap: () => context
-                              .read<TransactionProvider>()
-                              .setPaymentMethod(method),
+                          inDevelopment: inDevelopment,
+                          onTap: () {
+                            if (inDevelopment) {
+                              _showPaymentDevelopmentNotice(context, method);
+                              return;
+                            }
+
+                            context
+                                .read<TransactionProvider>()
+                                .setPaymentMethod(method);
+                          },
                         ),
                       );
                     }).toList(),
@@ -1906,6 +1943,16 @@ class _CheckoutSheet extends StatelessWidget {
                           final notifProvider =
                               context.read<NotificationProvider>();
 
+                          if (_isPaymentMethodInDevelopment(
+                            transactionProvider.paymentMethod,
+                          )) {
+                            _showPaymentDevelopmentNotice(
+                              context,
+                              transactionProvider.paymentMethod,
+                            );
+                            return;
+                          }
+
                           if (transactionProvider.paymentMethod ==
                                   PaymentMethod.cash &&
                               transactionProvider.amountPaid <
@@ -1987,11 +2034,13 @@ class _CheckoutSheet extends StatelessWidget {
 class _PaymentMethodOption extends StatelessWidget {
   final PaymentMethod method;
   final bool selected;
+  final bool inDevelopment;
   final VoidCallback onTap;
 
   const _PaymentMethodOption({
     required this.method,
     required this.selected,
+    required this.inDevelopment,
     required this.onTap,
   });
 
@@ -2027,11 +2076,29 @@ class _PaymentMethodOption extends StatelessWidget {
     final muted = selected
         ? Colors.white.withValues(alpha: 0.82)
         : AppTheme.textSecondary;
+    final iconColor = inDevelopment
+        ? AppTheme.warning
+        : selected
+            ? Colors.white
+            : AppTheme.primary;
+    final iconBgColor = selected
+        ? Colors.white.withValues(alpha: 0.16)
+        : inDevelopment
+            ? AppTheme.warning.withValues(alpha: 0.1)
+            : AppTheme.primary.withValues(alpha: 0.08);
+    final borderColor = selected
+        ? AppTheme.primary
+        : inDevelopment
+            ? AppTheme.warning.withValues(alpha: 0.34)
+            : const Color(0xFFF5C6D8);
+    final hint = inDevelopment ? 'Segera aktif' : _hint;
 
     return Semantics(
       button: true,
       selected: selected,
-      label: 'Metode pembayaran ${method.label}',
+      label: inDevelopment
+          ? 'Metode pembayaran ${method.label} dalam masa pengembangan'
+          : 'Metode pembayaran ${method.label}',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -2046,13 +2113,12 @@ class _PaymentMethodOption extends StatelessWidget {
               color: selected ? AppTheme.primary : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected ? AppTheme.primary : const Color(0xFFF5C6D8),
+                color: borderColor,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primary.withValues(
-                    alpha: selected ? 0.14 : 0.04,
-                  ),
+                  color: (inDevelopment ? AppTheme.warning : AppTheme.primary)
+                      .withValues(alpha: selected ? 0.14 : 0.04),
                   blurRadius: 14,
                   offset: const Offset(0, 7),
                 ),
@@ -2064,14 +2130,12 @@ class _PaymentMethodOption extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: selected
-                        ? Colors.white.withValues(alpha: 0.16)
-                        : AppTheme.primary.withValues(alpha: 0.08),
+                    color: iconBgColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     _icon,
-                    color: selected ? Colors.white : AppTheme.primary,
+                    color: iconColor,
                     size: 18,
                   ),
                 ),
@@ -2095,13 +2159,14 @@ class _PaymentMethodOption extends StatelessWidget {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        _hint,
+                        hint,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: muted,
+                          color: inDevelopment ? AppTheme.warning : muted,
                           fontSize: 10,
-                          fontWeight: FontWeight.w700,
+                          fontWeight:
+                              inDevelopment ? FontWeight.w900 : FontWeight.w700,
                           fontFamily: 'Poppins',
                           letterSpacing: 0,
                         ),

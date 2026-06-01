@@ -111,6 +111,22 @@ class _StockScreenState extends State<StockScreen> {
     return 'Tekan tombol tambah untuk memperbarui stok toko.';
   }
 
+  FlowerStock? _focusedStock(StockProvider provider) {
+    final query = provider.searchQuery.trim().toLowerCase();
+    if (query.isEmpty || provider.allStocks.isEmpty) return null;
+
+    bool isMatch(FlowerStock item) {
+      final name = item.name.trim().toLowerCase();
+      return name == query || name.contains(query) || query.contains(name);
+    }
+
+    final matches = provider.allStocks.where(isMatch).toList();
+    if (matches.length == 1) return matches.first;
+
+    if (provider.stocks.length == 1) return provider.stocks.first;
+    return null;
+  }
+
   void _showCenterNotice(StockActionResult result) {
     _noticeEntry?.remove();
     final entry = OverlayEntry(
@@ -147,6 +163,7 @@ class _StockScreenState extends State<StockScreen> {
   @override
   Widget build(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
+    final focusedStock = _focusedStock(stockProvider);
 
     if (_searchCtrl.text != stockProvider.searchQuery) {
       _searchCtrl.value = TextEditingValue(
@@ -235,8 +252,21 @@ class _StockScreenState extends State<StockScreen> {
                   },
                 ),
               ),
+              if (focusedStock != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
+                  child: _FocusedStockHero(
+                    item: focusedStock,
+                    currencyFmt: _currencyFmt,
+                  ),
+                ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  focusedStock == null ? 6 : 0,
+                  20,
+                  8,
+                ),
                 child: _StockSummaryStrip(
                   summary: _summaryText(stockProvider),
                   lowStockCount: stockProvider.lowStockCount,
@@ -254,6 +284,7 @@ class _StockScreenState extends State<StockScreen> {
                   currencyFmt: _currencyFmt,
                   onRefresh: _refreshStocks,
                   onOpenStockSheet: () => _showAddStockSheet(stockProvider),
+                  highlightedStockId: focusedStock?.id,
                   emptyTitle: _emptyTitle(stockProvider),
                   emptySubtitle: _emptySubtitle(stockProvider),
                 ),
@@ -798,6 +829,7 @@ class _StockContent extends StatelessWidget {
   final NumberFormat currencyFmt;
   final Future<void> Function() onRefresh;
   final Future<void> Function() onOpenStockSheet;
+  final int? highlightedStockId;
   final String emptyTitle;
   final String emptySubtitle;
 
@@ -806,21 +838,10 @@ class _StockContent extends StatelessWidget {
     required this.currencyFmt,
     required this.onRefresh,
     required this.onOpenStockSheet,
+    required this.highlightedStockId,
     required this.emptyTitle,
     required this.emptySubtitle,
   });
-
-  FlowerStock? get _focusedStock {
-    final query = provider.searchQuery.trim().toLowerCase();
-    if (query.isEmpty || provider.stocks.isEmpty) return null;
-
-    for (final item in provider.stocks) {
-      if (item.name.toLowerCase() == query) return item;
-    }
-
-    if (provider.stocks.length == 1) return provider.stocks.first;
-    return null;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -851,24 +872,19 @@ class _StockContent extends StatelessWidget {
       onRefresh: onRefresh,
       child: ListView.builder(
         key: ValueKey(
-          'stock-list-${provider.searchQuery}-${provider.selectedCategory}-${provider.isLowStockFilter}',
+          'stock-list-${provider.searchQuery}-${provider.selectedCategory}-${provider.isLowStockFilter}-$highlightedStockId',
         ),
         physics: const AlwaysScrollableScrollPhysics(
           parent: ClampingScrollPhysics(),
         ),
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 96),
-        itemCount: provider.stocks.length + (_focusedStock == null ? 0 : 1),
+        itemCount: provider.stocks.length,
         itemBuilder: (_, i) {
-          final focusedStock = _focusedStock;
-          if (focusedStock != null && i == 0) {
-            return _FocusedStockBanner(item: focusedStock);
-          }
-
-          final item = provider.stocks[i - (focusedStock == null ? 0 : 1)];
+          final item = provider.stocks[i];
           return _StockCard(
             item: item,
             currencyFmt: currencyFmt,
-            isHighlighted: focusedStock?.id == item.id,
+            isHighlighted: highlightedStockId == item.id,
           );
         },
       ),
@@ -876,10 +892,14 @@ class _StockContent extends StatelessWidget {
   }
 }
 
-class _FocusedStockBanner extends StatelessWidget {
+class _FocusedStockHero extends StatelessWidget {
   final FlowerStock item;
+  final NumberFormat currencyFmt;
 
-  const _FocusedStockBanner({required this.item});
+  const _FocusedStockHero({
+    required this.item,
+    required this.currencyFmt,
+  });
 
   Color get _color {
     switch (item.status) {
@@ -905,79 +925,173 @@ class _FocusedStockBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stockText = '${item.stock} ${item.unit}';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: _color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _color.withValues(alpha: 0.24)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(
-              item.isOutOfStock
-                  ? Icons.remove_shopping_cart_rounded
-                  : Icons.inventory_2_rounded,
-              color: _color,
-              size: 22,
-            ),
+        color: Colors.white.withValues(alpha: 0.97),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _color.withValues(alpha: 0.42), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: _color.withValues(alpha: 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: 0,
-                  ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _color.withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Stok saat ini ${item.stock} ${item.unit}',
+                child: Icon(
+                  item.isOutOfStock
+                      ? Icons.remove_shopping_cart_rounded
+                      : Icons.inventory_2_rounded,
+                  color: _color,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Hasil cek stok',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textSecondary,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: _color.withValues(alpha: 0.18)),
+                ),
+                child: Text(
+                  _statusLabel,
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
                     color: _color,
                     letterSpacing: 0,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: _color.withValues(alpha: 0.16)),
-            ),
-            child: Text(
-              _statusLabel,
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 10.2,
-                fontWeight: FontWeight.w900,
-                color: _color,
-                letterSpacing: 0,
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    stockText,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 30,
+                      height: 1,
+                      fontWeight: FontWeight.w900,
+                      color: _color,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Minimum',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textSecondary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  Text(
+                    '${item.minStock} ${item.unit}',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _InfoChip(
+                icon: Icons.sell_outlined,
+                label: currencyFmt.format(item.price),
+                color: AppTheme.primary,
+              ),
+              _InfoChip(
+                icon: Icons.category_outlined,
+                label: item.category,
+                color: AppTheme.textSecondary,
+              ),
+              _InfoChip(
+                icon: item.isOutOfStock
+                    ? Icons.warning_amber_rounded
+                    : Icons.check_circle_outline_rounded,
+                label: item.isOutOfStock
+                    ? 'Perlu restok'
+                    : item.isLowStock
+                        ? 'Perlu dicek'
+                        : 'Siap dijual',
+                color: _color,
+              ),
+            ],
           ),
         ],
       ),
