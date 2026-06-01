@@ -16,6 +16,7 @@ class Transaction {
   final String? note;
   final String cashierId;
   final String cashierName;
+  final String cashierEmail;
   final DateTime createdAt;
 
   Transaction({
@@ -32,13 +33,14 @@ class Transaction {
     this.note,
     required this.cashierId,
     required this.cashierName,
+    required this.cashierEmail,
     required this.createdAt,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
     return Transaction(
       id: json['id'],
-      invoiceNumber: json['invoice_number'],
+      invoiceNumber: json['invoice_number']?.toString() ?? '',
       items: (json['items'] as List)
           .map((e) => TransactionItem.fromJson(e))
           .toList(),
@@ -53,10 +55,58 @@ class Transaction {
         orElse: () => PaymentMethod.cash,
       ),
       note: json['note'],
-      cashierId: json['cashier_id'].toString(),
-      cashierName: json['cashier_name'],
+      cashierId: _firstText(json, const [
+        'cashier_id',
+        'cashierId',
+        'kasir_id',
+        'kasirId',
+        'user_id',
+        'userId',
+        'cashier_user_id',
+        'cashierUserId',
+        'created_by',
+        'createdBy',
+        'created_by_id',
+        'createdById',
+      ]),
+      cashierName: _firstText(json, const [
+        'cashier_name',
+        'cashierName',
+        'kasir_name',
+        'kasirName',
+        'nama_kasir',
+        'namaKasir',
+        'user_name',
+        'userName',
+        'created_by_name',
+        'createdByName',
+      ]),
+      cashierEmail: _firstText(json, const [
+        'cashier_email',
+        'cashierEmail',
+        'kasir_email',
+        'kasirEmail',
+        'user_email',
+        'userEmail',
+        'email',
+        'created_by_email',
+        'createdByEmail',
+        'operator_email',
+        'operatorEmail',
+      ]),
       createdAt: DateTime.parse(json['created_at']),
     );
+  }
+
+  static String _firstText(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key]?.toString().trim();
+      if (value != null && value.isNotEmpty && value.toLowerCase() != 'null') {
+        return value;
+      }
+    }
+
+    return '-';
   }
 
   Map<String, dynamic> toJson() => {
@@ -72,6 +122,7 @@ class Transaction {
         'note': note,
         'cashier_id': cashierId,
         'cashier_name': cashierName,
+        'cashier_email': cashierEmail,
         'created_at': createdAt.toIso8601String(),
       };
 }

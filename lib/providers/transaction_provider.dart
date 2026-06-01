@@ -16,6 +16,7 @@ class TransactionProvider extends ChangeNotifier {
   final List<CartItem> _cart = [];
   List<Transaction> _transactions = [];
   bool _isLoading = false;
+  bool _isRefreshing = false;
   bool _isSubmitting = false;
   String? _errorMessage;
   PaymentMethod _paymentMethod = PaymentMethod.cash;
@@ -26,6 +27,7 @@ class TransactionProvider extends ChangeNotifier {
   List<CartItem> get cart => _cart;
   List<Transaction> get transactions => _transactions;
   bool get isLoading => _isLoading;
+  bool get isRefreshing => _isRefreshing;
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
   PaymentMethod get paymentMethod => _paymentMethod;
@@ -105,7 +107,11 @@ class TransactionProvider extends ChangeNotifier {
     _note = note;
   }
 
-  Future<bool> submitTransaction() async {
+  Future<bool> submitTransaction({
+    String? cashierId,
+    String? cashierName,
+    String? cashierEmail,
+  }) async {
     if (_cart.isEmpty) {
       _errorMessage = 'Keranjang masih kosong.';
       notifyListeners();
@@ -142,12 +148,18 @@ class TransactionProvider extends ChangeNotifier {
         'payment_method': _paymentMethod.name,
         'promo': _isPromo ? 1 : 0,
         'note': _note,
+        if (cashierId != null && cashierId.trim().isNotEmpty)
+          'cashier_id': cashierId.trim(),
+        if (cashierName != null && cashierName.trim().isNotEmpty)
+          'cashier_name': cashierName.trim(),
+        if (cashierEmail != null && cashierEmail.trim().isNotEmpty)
+          'cashier_email': cashierEmail.trim().toLowerCase(),
       };
 
       await ApiService.createTransaction(data);
 
       // Langsung reload dari backend supaya riwayat pasti up to date
-      await loadTransactions();
+      await loadTransactions(showLoading: false);
 
       clearCart();
       return true;
@@ -172,8 +184,16 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadTransactions({DateTime? start, DateTime? end}) async {
-    _isLoading = true;
+  Future<void> loadTransactions({
+    DateTime? start,
+    DateTime? end,
+    bool showLoading = true,
+  }) async {
+    if (showLoading && _transactions.isEmpty) {
+      _isLoading = true;
+    } else {
+      _isRefreshing = true;
+    }
     _errorMessage = null;
     notifyListeners();
 
@@ -238,8 +258,49 @@ class TransactionProvider extends ChangeNotifier {
             orElse: () => PaymentMethod.cash,
           ),
           note: first['note'],
-          cashierId: first['cashier_id']?.toString() ?? '-',
-          cashierName: first['cashier_name'] ?? '-',
+          cashierId: _firstText(first, const [
+            'cashier_id',
+            'cashierId',
+            'kasir_id',
+            'kasirId',
+            'user_id',
+            'userId',
+            'cashier_user_id',
+            'cashierUserId',
+            'created_by',
+            'createdBy',
+            'created_by_id',
+            'createdById',
+            'operator_id',
+            'operatorId',
+          ]),
+          cashierName: _firstText(first, const [
+            'cashier_name',
+            'cashierName',
+            'kasir_name',
+            'kasirName',
+            'nama_kasir',
+            'namaKasir',
+            'user_name',
+            'userName',
+            'created_by_name',
+            'createdByName',
+            'operator_name',
+            'operatorName',
+          ]),
+          cashierEmail: _firstText(first, const [
+            'cashier_email',
+            'cashierEmail',
+            'kasir_email',
+            'kasirEmail',
+            'user_email',
+            'userEmail',
+            'email',
+            'created_by_email',
+            'createdByEmail',
+            'operator_email',
+            'operatorEmail',
+          ]),
           createdAt: _transactionDate(first),
         );
       }).toList();
@@ -250,6 +311,7 @@ class TransactionProvider extends ChangeNotifier {
           'Riwayat transaksi belum bisa dimuat. Pastikan internet aktif atau hubungi admin.';
     } finally {
       _isLoading = false;
+      _isRefreshing = false;
       notifyListeners();
     }
   }
@@ -267,6 +329,17 @@ class TransactionProvider extends ChangeNotifier {
     if (value is num) return value.toInt();
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
+  }
+
+  String _firstText(Map<dynamic, dynamic> row, List<String> keys) {
+    for (final key in keys) {
+      final value = row[key]?.toString().trim();
+      if (value != null && value.isNotEmpty && value.toLowerCase() != 'null') {
+        return value;
+      }
+    }
+
+    return '-';
   }
 
   DateTime _transactionDate(dynamic row) {

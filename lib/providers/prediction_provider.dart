@@ -18,6 +18,7 @@ class PredictionSummary {
 
   factory PredictionSummary.fromJson(Map<String, dynamic> json) {
     final predictedDemand = (json['prediction'] as num).toDouble();
+    final roundedDemand = predictedDemand.round();
 
     return PredictionSummary(
       flowerId: json['product_id'] ?? 0,
@@ -25,7 +26,7 @@ class PredictionSummary {
       predictedDemand: predictedDemand,
       confidence: 0.85,
       recommendation:
-          'Siapkan stok sekitar ${predictedDemand.toStringAsFixed(0)} tangkai untuk periode berikutnya.',
+          'Perkiraan butuh sekitar $roundedDemand tangkai. Cek stok dulu sebelum restok.',
     );
   }
 }

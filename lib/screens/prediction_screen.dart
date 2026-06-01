@@ -640,7 +640,7 @@ class _PredictionInfoBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${numberFmt.format(totalCount)} prediksi siap dibaca',
+                  '${numberFmt.format(totalCount)} bunga sudah dianalisis',
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 13.5,
@@ -652,8 +652,8 @@ class _PredictionInfoBanner extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   highCount > 0
-                      ? '$highCount bunga perlu perhatian stok lebih awal.'
-                      : 'Prediksi membantu perkiraan stok, bukan angka pasti.',
+                      ? '$highCount bunga diperkirakan butuh stok lebih banyak.'
+                      : 'Angka di bawah adalah perkiraan kebutuhan restok.',
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 11.2,
@@ -819,7 +819,7 @@ class _PredictionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     const Text(
-                      'Bunga Potong',
+                      'Prediksi kebutuhan restok',
                       style: TextStyle(
                         fontFamily: 'Poppins',
                         fontSize: 11,
@@ -843,7 +843,7 @@ class _PredictionCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _PredictionMetric(
-                  label: 'Prediksi',
+                  label: 'Perkiraan butuh',
                   value: '${numberFmt.format(demand)} tangkai',
                   icon: Icons.inventory_2_rounded,
                   color: AppTheme.primary,
@@ -852,7 +852,7 @@ class _PredictionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _PredictionMetric(
-                  label: 'Keyakinan',
+                  label: 'Tingkat yakin',
                   value: '$confidence%',
                   icon: Icons.verified_rounded,
                   color: color,
@@ -910,7 +910,7 @@ class _PredictionCard extends StatelessWidget {
             children: [
               const Expanded(
                 child: Text(
-                  'Cek stok sebelum keputusan restok.',
+                  'Angka ini bukan stok saat ini.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 10.5,

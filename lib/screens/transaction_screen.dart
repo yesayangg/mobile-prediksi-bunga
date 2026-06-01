@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/stock_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/flower_stock.dart';
 import '../models/transaction.dart';
 import '../theme/app_theme.dart';
@@ -123,7 +124,6 @@ class _TransactionScreenState extends State<TransactionScreen>
 
   @override
   Widget build(BuildContext context) {
-    final txProvider = context.watch<TransactionProvider>();
     final stockProvider = context.watch<StockProvider>();
 
     return Scaffold(
@@ -132,8 +132,6 @@ class _TransactionScreenState extends State<TransactionScreen>
         preferredSize: const Size.fromHeight(200),
         child: _CashierHeader(
           tabController: _tabController,
-          cartCount: txProvider.cartItemCount,
-          historyCount: txProvider.transactions.length,
           availableCount: stockProvider.availableCount,
           totalCount: stockProvider.totalCount,
         ),
@@ -173,15 +171,11 @@ class _TransactionScreenState extends State<TransactionScreen>
 
 class _CashierHeader extends StatelessWidget {
   final TabController tabController;
-  final int cartCount;
-  final int historyCount;
   final int availableCount;
   final int totalCount;
 
   const _CashierHeader({
     required this.tabController,
-    required this.cartCount,
-    required this.historyCount,
     required this.availableCount,
     required this.totalCount,
   });
@@ -313,16 +307,14 @@ class _CashierHeader extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
                   ),
-                  tabs: [
+                  tabs: const [
                     _CashierTab(
                       icon: Icons.shopping_cart_checkout_rounded,
                       label: 'Transaksi Baru',
-                      count: cartCount,
                     ),
                     _CashierTab(
                       icon: Icons.history_rounded,
                       label: 'Riwayat',
-                      count: historyCount,
                     ),
                   ],
                 ),
@@ -338,12 +330,10 @@ class _CashierHeader extends StatelessWidget {
 class _CashierTab extends StatelessWidget {
   final IconData icon;
   final String label;
-  final int count;
 
   const _CashierTab({
     required this.icon,
     required this.label,
-    required this.count,
   });
 
   @override
@@ -361,23 +351,6 @@ class _CashierTab extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              count > 99 ? '99+' : count.toString(),
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
-              ),
             ),
           ),
         ],
@@ -1982,8 +1955,13 @@ class _CheckoutSheet extends StatelessWidget {
                               context, transactionProvider);
                           if (!confirmed || !context.mounted) return;
 
+                          final user = context.read<AuthProvider>().user;
                           final success =
-                              await transactionProvider.submitTransaction();
+                              await transactionProvider.submitTransaction(
+                            cashierId: user?.accountId,
+                            cashierName: user?.name,
+                            cashierEmail: user?.email,
+                          );
 
                           if (!context.mounted) return;
 
