@@ -140,10 +140,9 @@ class _PredictionScreenState extends State<PredictionScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bgLight,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(210),
+        preferredSize: const Size.fromHeight(200),
         child: _PredictionHeader(
           isLoading: provider.isLoading,
-          periodLabel: provider.predictionDate ?? 'Periode belum tersedia',
           updatedLabel: _updatedLabel(provider),
           activeFilter: _activeFilter,
           allCount: predictions.length,
@@ -195,7 +194,6 @@ class _PredictionScreenState extends State<PredictionScreen> {
 
 class _PredictionHeader extends StatelessWidget {
   final bool isLoading;
-  final String periodLabel;
   final String updatedLabel;
   final _PredictionFilter activeFilter;
   final int allCount;
@@ -207,7 +205,6 @@ class _PredictionHeader extends StatelessWidget {
 
   const _PredictionHeader({
     required this.isLoading,
-    required this.periodLabel,
     required this.updatedLabel,
     required this.activeFilter,
     required this.allCount,
@@ -272,7 +269,7 @@ class _PredictionHeader extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '$updatedLabel - $periodLabel',
+                          updatedLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
