@@ -30,6 +30,8 @@ class _NoStretchScrollBehavior extends MaterialScrollBehavior {
 
 enum _HistoryFilter { all, today, mine }
 
+enum _ReceiptNoticeKind { info, success, error }
+
 class _ReceiptPlatformActions {
   static const _channel = MethodChannel('florashop/file_actions');
 
@@ -715,6 +717,8 @@ class _HistorySkeletonList extends StatelessWidget {
 }
 
 class _TransactionDetailSheet extends StatelessWidget {
+  static OverlayEntry? _activeActionNotice;
+
   final Transaction tx;
   final NumberFormat currencyFmt;
   final DateFormat dateFmt;
@@ -916,20 +920,40 @@ class _TransactionDetailSheet extends StatelessWidget {
 
   Future<void> _printReceipt(BuildContext context) async {
     try {
-      _showActionMessage(context, 'Membuka pilihan printer...');
+      _showActionMessage(
+        context,
+        'Membuka pilihan printer...',
+        kind: _ReceiptNoticeKind.info,
+      );
       final bytes = await _buildPdfBytes();
-      await Printing.layoutPdf(
+      final printed = await Printing.layoutPdf(
         name: tx.invoiceNumber,
         onLayout: (_) async => bytes,
       );
+
+      if (!context.mounted) return;
+      _showActionMessage(
+        context,
+        printed ? 'Struk dikirim ke layanan cetak.' : 'Cetak struk dibatalkan.',
+        kind: printed ? _ReceiptNoticeKind.success : _ReceiptNoticeKind.info,
+      );
     } catch (_) {
       if (!context.mounted) return;
-      _showActionMessage(context, 'Struk belum bisa dicetak.');
+      _showActionMessage(
+        context,
+        'Struk belum bisa dicetak.',
+        kind: _ReceiptNoticeKind.error,
+      );
     }
   }
 
   Future<void> _savePdf(BuildContext context) async {
     try {
+      _showActionMessage(
+        context,
+        'Menyiapkan PDF struk...',
+        kind: _ReceiptNoticeKind.info,
+      );
       final bytes = await _buildPdfBytes();
       final fileName = '$_fileBaseName.pdf';
       if (!context.mounted) return;
@@ -942,7 +966,10 @@ class _TransactionDetailSheet extends StatelessWidget {
           collection: 'downloads',
         );
         if (!context.mounted) return;
-        _showActionMessage(context, 'PDF struk tersimpan di $location');
+        _showActionMessage(
+          context,
+          'PDF struk tersimpan di $location',
+        );
         return;
       }
 
@@ -951,12 +978,21 @@ class _TransactionDetailSheet extends StatelessWidget {
       _showActionMessage(context, 'PDF struk tersimpan: ${file.path}');
     } catch (_) {
       if (!context.mounted) return;
-      _showActionMessage(context, 'PDF struk belum bisa disimpan.');
+      _showActionMessage(
+        context,
+        'PDF struk belum bisa disimpan.',
+        kind: _ReceiptNoticeKind.error,
+      );
     }
   }
 
   Future<void> _saveImage(BuildContext context) async {
     try {
+      _showActionMessage(
+        context,
+        'Menyiapkan gambar struk...',
+        kind: _ReceiptNoticeKind.info,
+      );
       final bytes = await _buildPngBytes();
       final fileName = '$_fileBaseName.png';
       if (!context.mounted) return;
@@ -969,7 +1005,10 @@ class _TransactionDetailSheet extends StatelessWidget {
           collection: 'pictures',
         );
         if (!context.mounted) return;
-        _showActionMessage(context, 'Gambar struk tersimpan di $location');
+        _showActionMessage(
+          context,
+          'Gambar struk tersimpan di $location',
+        );
         return;
       }
 
@@ -978,13 +1017,23 @@ class _TransactionDetailSheet extends StatelessWidget {
       _showActionMessage(context, 'Gambar struk tersimpan: ${file.path}');
     } catch (_) {
       if (!context.mounted) return;
-      _showActionMessage(context, 'Gambar struk belum bisa disimpan.');
+      _showActionMessage(
+        context,
+        'Gambar struk belum bisa disimpan.',
+        kind: _ReceiptNoticeKind.error,
+      );
     }
   }
 
   Future<void> _shareReceipt(BuildContext context,
       {required bool image}) async {
     try {
+      final formatLabel = image ? 'gambar' : 'PDF';
+      _showActionMessage(
+        context,
+        'Menyiapkan bagikan $formatLabel struk...',
+        kind: _ReceiptNoticeKind.info,
+      );
       final fileName = image ? '$_fileBaseName.png' : '$_fileBaseName.pdf';
       final mimeType = image ? 'image/png' : 'application/pdf';
       final text = 'Struk transaksi FLORASHOP ${tx.invoiceNumber}';
@@ -1000,6 +1049,11 @@ class _TransactionDetailSheet extends StatelessWidget {
           text: text,
           subject: subject,
         );
+        if (!context.mounted) return;
+        _showActionMessage(
+          context,
+          'Menu bagikan $formatLabel struk dibuka.',
+        );
         return;
       }
 
@@ -1011,17 +1065,43 @@ class _TransactionDetailSheet extends StatelessWidget {
           subject: subject,
         ),
       );
+      if (!context.mounted) return;
+      _showActionMessage(
+        context,
+        'Menu bagikan $formatLabel struk dibuka.',
+      );
     } catch (_) {
       if (!context.mounted) return;
-      _showActionMessage(context, 'Struk belum bisa dibagikan.');
+      _showActionMessage(
+        context,
+        'Struk belum bisa dibagikan.',
+        kind: _ReceiptNoticeKind.error,
+      );
     }
   }
 
-  void _showActionMessage(BuildContext context, String message) {
+  void _showActionMessage(
+    BuildContext context,
+    String message, {
+    _ReceiptNoticeKind kind = _ReceiptNoticeKind.success,
+  }) {
     if (!context.mounted) return;
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final color = switch (kind) {
+      _ReceiptNoticeKind.info => AppTheme.info,
+      _ReceiptNoticeKind.success => AppTheme.success,
+      _ReceiptNoticeKind.error => AppTheme.error,
+    };
+    final icon = switch (kind) {
+      _ReceiptNoticeKind.info => Icons.info_rounded,
+      _ReceiptNoticeKind.success => Icons.check_circle_rounded,
+      _ReceiptNoticeKind.error => Icons.error_rounded,
+    };
 
     if (overlay != null) {
+      _activeActionNotice?.remove();
+      _activeActionNotice = null;
+
       late OverlayEntry entry;
       entry = OverlayEntry(
         builder: (_) => Positioned.fill(
@@ -1040,7 +1120,7 @@ class _TransactionDetailSheet extends StatelessWidget {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.textPrimary.withValues(alpha: 0.96),
+                        color: color.withValues(alpha: 0.96),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -1053,8 +1133,8 @@ class _TransactionDetailSheet extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.check_circle_rounded,
+                          Icon(
+                            icon,
                             color: Colors.white,
                             size: 18,
                           ),
@@ -1084,16 +1164,21 @@ class _TransactionDetailSheet extends StatelessWidget {
       );
 
       overlay.insert(entry);
+      _activeActionNotice = entry;
       Future.delayed(const Duration(seconds: 3), () {
-        if (entry.mounted) entry.remove();
+        if (_activeActionNotice == entry) {
+          entry.remove();
+          _activeActionNotice = null;
+        }
       });
       return;
     }
 
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: AppTheme.textPrimary,
+        backgroundColor: color,
         behavior: SnackBarBehavior.floating,
       ),
     );
