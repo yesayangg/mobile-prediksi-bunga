@@ -171,6 +171,7 @@ class _MainNavigationState extends State<MainNavigation> {
     ];
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       // PageView membuat perpindahan tab terasa seperti pager modern:
       // halaman di kanan muncul dari kanan, halaman di kiri muncul dari kiri.
       body: ScrollConfiguration(

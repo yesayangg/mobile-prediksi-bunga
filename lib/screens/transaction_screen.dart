@@ -127,6 +127,7 @@ class _TransactionScreenState extends State<TransactionScreen>
     final stockProvider = context.watch<StockProvider>();
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(200),
         child: _CashierHeader(
@@ -571,6 +572,11 @@ class _ProductGrid extends StatelessWidget {
     this.onOpenStock,
   });
 
+  double _cardExtent(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    return (220 + ((textScale - 1) * 58)).clamp(220.0, 270.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (stockProvider.isLoading && stockProvider.allStocks.isEmpty) {
@@ -630,9 +636,9 @@ class _ProductGrid extends StatelessWidget {
           parent: ClampingScrollPhysics(),
         ),
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 96),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.92,
+          mainAxisExtent: _cardExtent(context),
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
@@ -855,6 +861,11 @@ class _CashierStatePanel extends StatelessWidget {
 class _CashierSkeletonGrid extends StatelessWidget {
   const _CashierSkeletonGrid();
 
+  double _cardExtent(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    return (220 + ((textScale - 1) * 58)).clamp(220.0, 270.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
@@ -862,9 +873,9 @@ class _CashierSkeletonGrid extends StatelessWidget {
         parent: ClampingScrollPhysics(),
       ),
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 96),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.92,
+        mainAxisExtent: _cardExtent(context),
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),

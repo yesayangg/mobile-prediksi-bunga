@@ -32,6 +32,10 @@ flutter:
   assets:
     - assets/icons/flower_header.svg
     - assets/icons/app_icon.png
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Medium.ttf
+    - assets/fonts/Roboto-Bold.ttf
+    - assets/fonts/Roboto-Black.ttf
 
   
   

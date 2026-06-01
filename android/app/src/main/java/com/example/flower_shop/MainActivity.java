@@ -7,14 +7,24 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.FileProvider;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 
 import io.flutter.embedding.engine.FlutterEngine;
@@ -68,6 +78,11 @@ public class MainActivity extends FlutterActivity {
                 return;
             }
 
+            if ("printFile".equals(call.method)) {
+                handlePrintFile(call, result);
+                return;
+            }
+
             result.notImplemented();
         });
     }
@@ -76,8 +91,14 @@ public class MainActivity extends FlutterActivity {
         new Thread(() -> {
             try {
                 FilePayload payload = readPayload(call);
-                SavedFile savedFile = writeToPublicStorage(payload);
-                runOnUiThread(() -> result.success(savedFile.displayPath));
+                SavedFile savedFile;
+                try {
+                    savedFile = writeToPublicStorage(payload);
+                } catch (Exception publicSaveError) {
+                    savedFile = writeToAppExternalStorage(payload);
+                }
+                final SavedFile finalSavedFile = savedFile;
+                runOnUiThread(() -> result.success(finalSavedFile.displayPath));
             } catch (Exception e) {
                 runOnUiThread(() -> result.error(
                     "SAVE_FAILED",
@@ -92,7 +113,7 @@ public class MainActivity extends FlutterActivity {
         new Thread(() -> {
             try {
                 FilePayload payload = readPayload(call);
-                SavedFile savedFile = writeToPublicStorage(payload);
+                SavedFile savedFile = writeToShareCache(payload);
                 runOnUiThread(() -> shareSavedFile(payload, savedFile, result));
             } catch (Exception e) {
                 runOnUiThread(() -> result.error(
@@ -102,6 +123,33 @@ public class MainActivity extends FlutterActivity {
                 ));
             }
         }).start();
+    }
+
+    private void handlePrintFile(MethodCall call, MethodChannel.Result result) {
+        try {
+            FilePayload payload = readPayload(call);
+            PrintManager printManager = (PrintManager) getSystemService(PRINT_SERVICE);
+            if (printManager == null) {
+                result.error("PRINT_UNAVAILABLE", "Layanan printer Android tidak tersedia.", null);
+                return;
+            }
+
+            String jobName = payload.fileName.replace(".pdf", "");
+            printManager.print(
+                jobName,
+                new PdfBytesPrintAdapter(payload.fileName, payload.bytes),
+                new PrintAttributes.Builder()
+                    .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
+                    .build()
+            );
+            result.success(null);
+        } catch (Exception e) {
+            result.error(
+                "PRINT_FAILED",
+                e.getMessage() == null ? "Pilihan printer belum bisa dibuka." : e.getMessage(),
+                null
+            );
+        }
     }
 
     private FilePayload readPayload(MethodCall call) {
@@ -217,6 +265,48 @@ public class MainActivity extends FlutterActivity {
         );
     }
 
+    private SavedFile writeToAppExternalStorage(FilePayload payload) throws Exception {
+        String parentDir = payload.isImage
+            ? Environment.DIRECTORY_PICTURES
+            : Environment.DIRECTORY_DOWNLOADS;
+        File baseDir = getExternalFilesDir(parentDir);
+        if (baseDir == null) {
+            baseDir = getFilesDir();
+        }
+
+        File dir = new File(baseDir, APP_FOLDER);
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IllegalStateException("Folder struk belum bisa dibuat.");
+        }
+
+        File file = new File(dir, payload.fileName);
+        try (FileOutputStream stream = new FileOutputStream(file)) {
+            stream.write(payload.bytes);
+        }
+
+        return new SavedFile(Uri.fromFile(file), file.getAbsolutePath());
+    }
+
+    private SavedFile writeToShareCache(FilePayload payload) throws Exception {
+        File dir = new File(getCacheDir(), "receipts");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IllegalStateException("Folder cache struk belum bisa dibuat.");
+        }
+
+        File file = new File(dir, payload.fileName);
+        try (FileOutputStream stream = new FileOutputStream(file)) {
+            stream.write(payload.bytes);
+        }
+
+        Uri uri = FileProvider.getUriForFile(
+            this,
+            getPackageName() + ".fileprovider",
+            file
+        );
+
+        return new SavedFile(uri, file.getAbsolutePath());
+    }
+
     private void shareSavedFile(
         FilePayload payload,
         SavedFile savedFile,
@@ -282,6 +372,57 @@ public class MainActivity extends FlutterActivity {
         SavedFile(Uri uri, String displayPath) {
             this.uri = uri;
             this.displayPath = displayPath;
+        }
+    }
+
+    private static class PdfBytesPrintAdapter extends PrintDocumentAdapter {
+        private final String fileName;
+        private final byte[] bytes;
+
+        PdfBytesPrintAdapter(String fileName, byte[] bytes) {
+            this.fileName = fileName;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public void onLayout(
+            PrintAttributes oldAttributes,
+            PrintAttributes newAttributes,
+            CancellationSignal cancellationSignal,
+            LayoutResultCallback callback,
+            Bundle extras
+        ) {
+            if (cancellationSignal.isCanceled()) {
+                callback.onLayoutCancelled();
+                return;
+            }
+
+            PrintDocumentInfo info = new PrintDocumentInfo.Builder(fileName)
+                .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
+                .build();
+            callback.onLayoutFinished(info, true);
+        }
+
+        @Override
+        public void onWrite(
+            PageRange[] pages,
+            ParcelFileDescriptor destination,
+            CancellationSignal cancellationSignal,
+            WriteResultCallback callback
+        ) {
+            if (cancellationSignal.isCanceled()) {
+                callback.onWriteCancelled();
+                return;
+            }
+
+            try (FileOutputStream stream =
+                     new FileOutputStream(destination.getFileDescriptor())) {
+                stream.write(bytes);
+                callback.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+            } catch (IOException e) {
+                callback.onWriteFailed(e.getMessage());
+            }
         }
     }
 }

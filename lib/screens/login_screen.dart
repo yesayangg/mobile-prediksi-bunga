@@ -13,13 +13,20 @@ import '../widgets/florashop_logo.dart';
 import 'main_navigation.dart';
 
 const MethodChannel _securityChannel = MethodChannel('florashop/security');
+const bool _blockAuthScreenShare = bool.fromEnvironment(
+  'BLOCK_AUTH_SCREEN_SHARE',
+  defaultValue: false,
+);
 int _secureAuthScreenDepth = 0;
 
 Future<void> _setSecureScreen(bool enabled) async {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
 
   try {
-    await _securityChannel.invokeMethod<void>('setSecureScreen', enabled);
+    await _securityChannel.invokeMethod<void>(
+      'setSecureScreen',
+      _blockAuthScreenShare && enabled,
+    );
   } catch (_) {
     // Desktop/web/tests can safely ignore this Android-only privacy guard.
   }
@@ -1825,6 +1832,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Timer? _resendTimer;
   Timer? _otpExpiryTimer;
   String? _rateLimitMessage;
+  String? _lastRejectedOtp;
 
   @override
   void initState() {
@@ -1854,7 +1862,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     super.dispose();
   }
 
-  String get _otpCode => _otpCtrls.map((c) => c.text).join();
+  String get _otpCode =>
+      ApiService.normalizeOtp(_otpCtrls.map((c) => c.text).join());
   bool get _isOtpExpired => _otpExpirySeconds <= 0;
   String get _maskedEmail => _maskEmail(widget.email);
 
@@ -1872,7 +1881,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   void _fillOtpFrom(String value, {required int startIndex}) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
+    final digits = ApiService.normalizeOtp(value);
     if (digits.isEmpty) return;
 
     _isFillingOtp = true;
@@ -1886,6 +1895,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       );
     }
     _isFillingOtp = false;
+    _lastRejectedOtp = null;
 
     if (_otpCode.length == 6) {
       FocusScope.of(context).unfocus();
@@ -1969,6 +1979,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       if (!mounted) return;
 
+      _lastRejectedOtp = null;
       _clearOtp();
       _startResendCooldown();
       _startOtpExpiryTimer();
@@ -2009,10 +2020,25 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       return;
     }
 
-    if (_otpCode.length < 6) {
+    final otpCode = _otpCode;
+
+    if (otpCode.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Masukkan 6 digit kode OTP.'),
+          backgroundColor: AppTheme.warning,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_lastRejectedOtp == otpCode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Kode ini sudah ditolak server. Cek email terbaru atau kirim ulang kode baru.',
+          ),
           backgroundColor: AppTheme.warning,
           behavior: SnackBarBehavior.floating,
         ),
@@ -2026,7 +2052,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
 
     try {
-      await ApiService.verifyOtp(widget.email, _otpCode);
+      await ApiService.verifyOtp(widget.email, otpCode);
 
       if (!mounted) return;
 
@@ -2035,7 +2061,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         MaterialPageRoute(
           builder: (_) => ResetPasswordScreen(
             email: widget.email,
-            otpCode: _otpCode,
+            otpCode: otpCode,
           ),
         ),
       );
@@ -2045,6 +2071,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       final message = _friendlyErrorMessage(e, preferredField: 'otp');
       setState(() {
         _rateLimitMessage = _isRateLimitError(e) ? message : null;
+        if (!_isRateLimitError(e) && !_isConnectionError(e)) {
+          _lastRejectedOtp = otpCode;
+        }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2143,6 +2172,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             return;
                           }
 
+                          _lastRejectedOtp = null;
                           if (value.isNotEmpty && i < 5) {
                             _focusNodes[i + 1].requestFocus();
                           } else if (value.isEmpty && i > 0) {

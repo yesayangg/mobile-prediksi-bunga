@@ -68,6 +68,19 @@ class _ReceiptPlatformActions {
       'subject': subject,
     });
   }
+
+  static Future<void> printBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) {
+    return _channel.invokeMethod<void>('printFile', {
+      'bytes': bytes,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'collection': 'downloads',
+    });
+  }
 }
 
 class TransactionHistoryTab extends StatefulWidget {
@@ -741,117 +754,235 @@ class _TransactionDetailSheet extends StatelessWidget {
           ? 'Kasir'
           : tx.cashierName;
 
+  PdfPageFormat get _receiptPageFormat {
+    final itemHeightMm = tx.items.fold<double>(0, (sum, item) {
+      final nameRows = (item.flowerName.length / 24).ceil().clamp(1, 3);
+      return sum + 8 + ((nameRows - 1) * 4);
+    });
+    final noteHeightMm = tx.note == null || tx.note!.trim().isEmpty ? 0 : 10;
+    final heightMm = (78 + itemHeightMm + noteHeightMm).clamp(92.0, 2000.0);
+
+    return PdfPageFormat(
+      80 * PdfPageFormat.mm,
+      heightMm * PdfPageFormat.mm,
+    );
+  }
+
+  Future<pw.Font> _loadPdfFont(String assetPath) async {
+    return pw.Font.ttf(await rootBundle.load(assetPath));
+  }
+
   Future<Uint8List> _buildPdfBytes() async {
+    final regularFont = await _loadPdfFont('assets/fonts/Roboto-Regular.ttf');
+    final mediumFont = await _loadPdfFont('assets/fonts/Roboto-Medium.ttf');
+    final boldFont = await _loadPdfFont('assets/fonts/Roboto-Bold.ttf');
+    final blackFont = await _loadPdfFont('assets/fonts/Roboto-Black.ttf');
     final doc = pw.Document();
     final pink = PdfColor.fromHex('#E21666');
     final dark = PdfColor.fromHex('#4B1528');
     final muted = PdfColor.fromHex('#9F6079');
+    final softPink = PdfColor.fromHex('#FFF7FB');
+    final borderPink = PdfColor.fromHex('#F5B4CE');
+    final logoData = await rootBundle.load('assets/icons/app_icon.png');
+    final logo = pw.MemoryImage(
+      logoData.buffer.asUint8List(
+        logoData.offsetInBytes,
+        logoData.lengthInBytes,
+      ),
+    );
+    final createdAt = dateFmt.format(tx.createdAt.toLocal());
+
+    pw.TextStyle style(
+      double fontSize,
+      PdfColor color, {
+      pw.Font? font,
+    }) {
+      return pw.TextStyle(
+        font: font ?? regularFont,
+        fontSize: fontSize,
+        color: color,
+      );
+    }
+
+    pw.Widget infoRow(
+      String label,
+      String value, {
+      PdfColor? valueColor,
+      bool total = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 3.3),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              flex: 4,
+              child: pw.Text(
+                label,
+                style: style(
+                  total ? 9.5 : 7.3,
+                  total ? dark : muted,
+                  font: total ? blackFont : mediumFont,
+                ),
+              ),
+            ),
+            pw.SizedBox(width: 6),
+            pw.Expanded(
+              flex: 9,
+              child: pw.Text(
+                value,
+                textAlign: pw.TextAlign.right,
+                style: style(
+                  total ? 10 : 7.4,
+                  valueColor ?? dark,
+                  font: total ? blackFont : boldFont,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     doc.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.roll80,
-        margin: const pw.EdgeInsets.all(14),
+        pageTheme: pw.PageTheme(
+          pageFormat: _receiptPageFormat,
+          margin: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          buildBackground: (context) => pw.FullPage(
+            ignoreMargins: true,
+            child: pw.Container(color: PdfColors.white),
+          ),
+        ),
         build: (context) => [
           pw.Center(
-            child: pw.Column(
+            child: pw.Row(
+              mainAxisSize: pw.MainAxisSize.min,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                pw.Text(
-                  'FLORASHOP',
-                  style: pw.TextStyle(
-                    fontSize: 18,
-                    fontWeight: pw.FontWeight.bold,
-                    color: pink,
+                pw.Container(
+                  width: 18,
+                  height: 18,
+                  padding: const pw.EdgeInsets.all(3),
+                  decoration: pw.BoxDecoration(
+                    color: softPink,
+                    borderRadius: pw.BorderRadius.circular(5),
+                    border: pw.Border.all(color: borderPink, width: 0.45),
                   ),
+                  child: pw.Image(logo, fit: pw.BoxFit.contain),
                 ),
-                pw.SizedBox(height: 3),
-                pw.Text(
-                  'Struk transaksi kasir',
-                  style: pw.TextStyle(fontSize: 9, color: muted),
+                pw.SizedBox(width: 6),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'FLORAPREDICT',
+                      style: style(12, pink, font: blackFont),
+                    ),
+                    pw.Text(
+                      'Struk transaksi FLORASHOP',
+                      style: style(7, muted, font: mediumFont),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          pw.SizedBox(height: 12),
-          _pdfInfoRow('Invoice', tx.invoiceNumber, dark, muted),
-          _pdfInfoRow(
-              'Tanggal', dateFmt.format(tx.createdAt.toLocal()), dark, muted),
-          _pdfInfoRow('Kasir', _cashierName, dark, muted),
-          _pdfInfoRow('Bayar', tx.paymentMethod.label, dark, muted),
-          pw.Divider(color: PdfColor.fromHex('#F0B5CC')),
+          pw.SizedBox(height: 8),
+          infoRow('Invoice', tx.invoiceNumber),
+          infoRow('Tanggal', createdAt),
+          infoRow('Kasir', _cashierName),
+          infoRow('Bayar', tx.paymentMethod.label),
+          pw.SizedBox(height: 4),
+          pw.Container(height: 0.55, color: borderPink),
           pw.SizedBox(height: 6),
+          pw.Text(
+            'Item Dibeli',
+            style: style(8.7, dark, font: blackFont),
+          ),
+          pw.SizedBox(height: 5),
           ...tx.items.map((item) {
             return pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 8),
-              child: pw.Column(
+              padding: const pw.EdgeInsets.only(bottom: 6),
+              child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(
-                    item.flowerName,
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                      color: dark,
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          item.flowerName,
+                          style: style(8.4, dark, font: blackFont),
+                        ),
+                        pw.SizedBox(height: 1.5),
+                        pw.Text(
+                          '${item.quantity} x ${currencyFmt.format(item.unitPrice)}',
+                          style: style(7.2, muted, font: mediumFont),
+                        ),
+                      ],
                     ),
                   ),
-                  pw.SizedBox(height: 2),
-                  pw.Row(
-                    children: [
-                      pw.Expanded(
-                        child: pw.Text(
-                          '${item.quantity} x ${currencyFmt.format(item.unitPrice)}',
-                          style: pw.TextStyle(fontSize: 8.5, color: muted),
-                        ),
-                      ),
-                      pw.Text(
-                        currencyFmt.format(item.subtotal),
-                        style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                          color: dark,
-                        ),
-                      ),
-                    ],
+                  pw.SizedBox(width: 6),
+                  pw.Text(
+                    currencyFmt.format(item.subtotal),
+                    style: style(8.1, dark, font: blackFont),
                   ),
                 ],
               ),
             );
           }),
-          pw.Divider(color: PdfColor.fromHex('#F0B5CC')),
-          _pdfInfoRow(
-              'Subtotal', currencyFmt.format(tx.totalAmount), dark, muted),
+          pw.Container(height: 0.55, color: borderPink),
+          pw.SizedBox(height: 6),
+          infoRow('Subtotal', currencyFmt.format(tx.totalAmount)),
+          if (tx.discount > 0)
+            infoRow(
+              'Diskon',
+              '- ${currencyFmt.format(tx.discount)}',
+              valueColor: pink,
+            ),
+          if (tx.tax > 0) infoRow('Pajak', currencyFmt.format(tx.tax)),
           if (tx.paymentMethod == PaymentMethod.cash) ...[
-            _pdfInfoRow(
-                'Dibayar', currencyFmt.format(tx.amountPaid), dark, muted),
-            _pdfInfoRow(
-                'Kembalian', currencyFmt.format(tx.change), dark, muted),
+            infoRow('Dibayar', currencyFmt.format(tx.amountPaid)),
+            infoRow('Kembalian', currencyFmt.format(tx.change)),
           ],
-          pw.SizedBox(height: 8),
+          pw.SizedBox(height: 4),
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(vertical: 8),
+            padding: const pw.EdgeInsets.symmetric(vertical: 5),
             decoration: pw.BoxDecoration(
               border: pw.Border(
-                top: pw.BorderSide(color: PdfColor.fromHex('#F0B5CC')),
-                bottom: pw.BorderSide(color: PdfColor.fromHex('#F0B5CC')),
+                top: pw.BorderSide(color: borderPink, width: 0.65),
+                bottom: pw.BorderSide(color: borderPink, width: 0.65),
               ),
             ),
-            child: _pdfInfoRow(
+            child: infoRow(
               'TOTAL',
               currencyFmt.format(tx.grandTotal),
-              pink,
-              dark,
+              valueColor: pink,
               total: true,
             ),
           ),
           if (tx.note != null && tx.note!.isNotEmpty) ...[
-            pw.SizedBox(height: 8),
-            pw.Text('Catatan: ${tx.note}',
-                style: pw.TextStyle(fontSize: 8.5, color: muted)),
+            pw.SizedBox(height: 6),
+            pw.Text(
+              'Catatan: ${tx.note}',
+              style: style(7.1, muted),
+            ),
           ],
-          pw.SizedBox(height: 14),
+          pw.SizedBox(height: 9),
           pw.Center(
-            child: pw.Text(
-              'Terima kasih',
-              style: pw.TextStyle(fontSize: 9, color: muted),
+            child: pw.Column(
+              children: [
+                pw.Text(
+                  'Terima kasih',
+                  style: style(8.3, dark, font: blackFont),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  'Sampai jumpa lagi.',
+                  style: style(6.8, muted),
+                ),
+              ],
             ),
           ),
         ],
@@ -859,39 +990,6 @@ class _TransactionDetailSheet extends StatelessWidget {
     );
 
     return doc.save();
-  }
-
-  pw.Widget _pdfInfoRow(
-    String label,
-    String value,
-    PdfColor valueColor,
-    PdfColor labelColor, {
-    bool total = false,
-  }) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 5),
-      child: pw.Row(
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: total ? 10 : 8.5,
-              fontWeight: total ? pw.FontWeight.bold : pw.FontWeight.normal,
-              color: labelColor,
-            ),
-          ),
-          pw.Spacer(),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: total ? 11 : 8.5,
-              fontWeight: pw.FontWeight.bold,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<File> _writePdfFile([Uint8List? bytes]) async {
@@ -926,6 +1024,22 @@ class _TransactionDetailSheet extends StatelessWidget {
         kind: _ReceiptNoticeKind.info,
       );
       final bytes = await _buildPdfBytes();
+      final fileName = '$_fileBaseName.pdf';
+
+      if (Platform.isAndroid) {
+        await _ReceiptPlatformActions.printBytes(
+          bytes: bytes,
+          fileName: fileName,
+          mimeType: 'application/pdf',
+        );
+        if (!context.mounted) return;
+        _showActionMessage(
+          context,
+          'Pilihan printer struk dibuka.',
+        );
+        return;
+      }
+
       final printed = await Printing.layoutPdf(
         name: tx.invoiceNumber,
         onLayout: (_) async => bytes,
@@ -937,11 +1051,11 @@ class _TransactionDetailSheet extends StatelessWidget {
         printed ? 'Struk dikirim ke layanan cetak.' : 'Cetak struk dibatalkan.',
         kind: printed ? _ReceiptNoticeKind.success : _ReceiptNoticeKind.info,
       );
-    } catch (_) {
+    } catch (e) {
       if (!context.mounted) return;
       _showActionMessage(
         context,
-        'Struk belum bisa dicetak.',
+        'Struk belum bisa dicetak. ${_receiptActionError(e)}',
         kind: _ReceiptNoticeKind.error,
       );
     }
@@ -976,11 +1090,11 @@ class _TransactionDetailSheet extends StatelessWidget {
       final file = await _writePdfFile(bytes);
       if (!context.mounted) return;
       _showActionMessage(context, 'PDF struk tersimpan: ${file.path}');
-    } catch (_) {
+    } catch (e) {
       if (!context.mounted) return;
       _showActionMessage(
         context,
-        'PDF struk belum bisa disimpan.',
+        'PDF struk belum bisa disimpan. ${_receiptActionError(e)}',
         kind: _ReceiptNoticeKind.error,
       );
     }
@@ -1015,11 +1129,11 @@ class _TransactionDetailSheet extends StatelessWidget {
       final file = await _writePngFile(bytes);
       if (!context.mounted) return;
       _showActionMessage(context, 'Gambar struk tersimpan: ${file.path}');
-    } catch (_) {
+    } catch (e) {
       if (!context.mounted) return;
       _showActionMessage(
         context,
-        'Gambar struk belum bisa disimpan.',
+        'Gambar struk belum bisa disimpan. ${_receiptActionError(e)}',
         kind: _ReceiptNoticeKind.error,
       );
     }
@@ -1070,14 +1184,26 @@ class _TransactionDetailSheet extends StatelessWidget {
         context,
         'Menu bagikan $formatLabel struk dibuka.',
       );
-    } catch (_) {
+    } catch (e) {
       if (!context.mounted) return;
       _showActionMessage(
         context,
-        'Struk belum bisa dibagikan.',
+        'Struk belum bisa dibagikan. ${_receiptActionError(e)}',
         kind: _ReceiptNoticeKind.error,
       );
     }
+  }
+
+  String _receiptActionError(Object error) {
+    if (error is PlatformException) {
+      final message = error.message?.trim();
+      if (message != null && message.isNotEmpty) return message;
+    }
+
+    final message = error.toString().trim();
+    if (message.isEmpty) return 'Coba lagi atau hubungi admin.';
+    if (message.length > 96) return '${message.substring(0, 96)}...';
+    return message;
   }
 
   void _showActionMessage(
@@ -1497,7 +1623,7 @@ class _ReceiptCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.98),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFF5C6D8)),
         boxShadow: [
@@ -1512,19 +1638,13 @@ class _ReceiptCard extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF5D1734),
-                  Color(0xFFC51661),
-                  Color(0xFFE8185A),
-                ],
-                stops: [0, 0.52, 1],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
+              color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFF5C6D8)),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1535,16 +1655,18 @@ class _ReceiptCard extends StatelessWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(15),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.22),
+                          color: const Color(0xFFF5C6D8),
                         ),
                       ),
-                      child: const Icon(
-                        Icons.local_florist_rounded,
-                        color: Colors.white,
-                        size: 22,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Image.asset(
+                          'assets/icons/app_icon.png',
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1553,23 +1675,23 @@ class _ReceiptCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'FLORASHOP',
+                            'FLORAPREDICT',
                             style: TextStyle(
                               fontFamily: 'Poppins',
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w900,
-                              color: Colors.white,
+                              color: AppTheme.primary,
                               letterSpacing: 0,
                             ),
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Struk transaksi kasir',
+                            'Struk transaksi FLORASHOP',
                             style: TextStyle(
                               fontFamily: 'Poppins',
-                              fontSize: 10.5,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFFFFD9EA),
+                              color: AppTheme.textSecondary,
                               letterSpacing: 0,
                             ),
                           ),
@@ -1582,10 +1704,10 @@ class _ReceiptCard extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.14),
+                        color: AppTheme.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.22),
+                          color: AppTheme.primary.withValues(alpha: 0.16),
                         ),
                       ),
                       child: Text(
@@ -1594,14 +1716,14 @@ class _ReceiptCard extends StatelessWidget {
                           fontFamily: 'Poppins',
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
-                          color: Colors.white,
+                          color: AppTheme.primary,
                           letterSpacing: 0,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _ReceiptMetaRow(label: 'Invoice', value: tx.invoiceNumber),
                 const SizedBox(height: 6),
                 _ReceiptMetaRow(
@@ -1622,61 +1744,81 @@ class _ReceiptCard extends StatelessWidget {
                   'Item Dibeli',
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     color: AppTheme.textPrimary,
                     letterSpacing: 0,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 ...tx.items.map(
                   (item) => _ReceiptItemRow(
                     item: item,
                     currencyFmt: currencyFmt,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const _ReceiptDivider(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _DetailRow(
                   label: 'Subtotal',
                   value: currencyFmt.format(tx.totalAmount),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _DetailRow(
                   label: 'Metode bayar',
                   value: tx.paymentMethod.label,
                 ),
                 if (tx.paymentMethod == PaymentMethod.cash) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   _DetailRow(
                     label: 'Dibayar',
                     value: currencyFmt.format(tx.amountPaid),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   _DetailRow(
                     label: 'Kembalian',
                     value: currencyFmt.format(tx.change),
                     valueColor: AppTheme.success,
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 13,
-                    vertical: 12,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
                     color: AppTheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: AppTheme.primary.withValues(alpha: 0.14),
                     ),
                   ),
-                  child: _DetailRow(
-                    label: 'Total',
-                    value: currencyFmt.format(tx.grandTotal),
-                    isTotal: true,
+                  child: Row(
+                    children: [
+                      const Text(
+                        'TOTAL',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        currencyFmt.format(tx.grandTotal),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.primary,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (tx.note != null && tx.note!.isNotEmpty) ...[
@@ -1691,6 +1833,34 @@ class _ReceiptCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 12),
+                const Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Terima kasih',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Sampai jumpa lagi.',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1714,11 +1884,11 @@ class _ReceiptMetaRow extends StatelessWidget {
           width: 64,
           child: Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 10.5,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Colors.white.withValues(alpha: 0.72),
+              color: AppTheme.textSecondary,
               letterSpacing: 0,
             ),
           ),
@@ -1729,9 +1899,9 @@ class _ReceiptMetaRow extends StatelessWidget {
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               letterSpacing: 0,
             ),
           ),
@@ -1751,10 +1921,10 @@ class _ReceiptItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
       decoration: BoxDecoration(
         color: AppTheme.bgLight,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFF5C6D8)),
       ),
       child: Row(
@@ -1781,7 +1951,7 @@ class _ReceiptItemRow extends StatelessWidget {
                   item.flowerName,
                   style: const TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     color: AppTheme.textPrimary,
                     letterSpacing: 0,
@@ -1794,7 +1964,7 @@ class _ReceiptItemRow extends StatelessWidget {
                   '${item.quantity} x ${currencyFmt.format(item.unitPrice)}',
                   style: const TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.textSecondary,
                     letterSpacing: 0,
@@ -1807,7 +1977,7 @@ class _ReceiptItemRow extends StatelessWidget {
             currencyFmt.format(item.subtotal),
             style: const TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 12.5,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               color: AppTheme.primary,
               letterSpacing: 0,
@@ -1852,13 +2022,11 @@ class _DashedLinePainter extends CustomPainter {
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
-  final bool isTotal;
   final Color? valueColor;
 
   const _DetailRow({
     required this.label,
     required this.value,
-    this.isTotal = false,
     this.valueColor,
   });
 
@@ -1868,9 +2036,9 @@ class _DetailRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: isTotal ? 15 : 13,
-            fontWeight: isTotal ? FontWeight.w700 : FontWeight.w400,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
             color: AppTheme.textPrimary,
             fontFamily: 'Poppins',
           ),
@@ -1879,10 +2047,9 @@ class _DetailRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: isTotal ? 16 : 13,
-            fontWeight: isTotal ? FontWeight.w700 : FontWeight.w600,
-            color: valueColor ??
-                (isTotal ? AppTheme.primary : AppTheme.textPrimary),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? AppTheme.textPrimary,
             fontFamily: 'Poppins',
           ),
         ),
