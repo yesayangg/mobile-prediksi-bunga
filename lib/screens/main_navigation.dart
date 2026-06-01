@@ -27,6 +27,27 @@ class _NoStretchScrollBehavior extends MaterialScrollBehavior {
   }
 }
 
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAlivePage({super.key, required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return RepaintBoundary(child: widget.child);
+  }
+}
+
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -49,10 +70,14 @@ class _MainNavigationState extends State<MainNavigation> {
   void _animateToTab(int index) {
     if (!_pageController.hasClients) return;
 
+    final currentPage = _pageController.page ?? _currentIndex.toDouble();
+    final pageDistance = (index - currentPage).abs();
+    final durationMs = (220 + (pageDistance * 45)).clamp(240, 360).round();
+
     unawaited(
       _pageController.animateToPage(
         index,
-        duration: const Duration(milliseconds: 360),
+        duration: Duration(milliseconds: durationMs),
         curve: Curves.easeOutCubic,
       ),
     );
@@ -156,18 +181,30 @@ class _MainNavigationState extends State<MainNavigation> {
     // Jumlah screen harus sama dengan jumlah item BottomNavigationBar.
     // Kalau urutannya berubah, index di _currentIndex juga harus disesuaikan.
     final screens = [
-      HomeScreen(
-        onNavigateToPrediksi: _goToPrediksi,
-        onNavigateToStock: _goToStock,
-        onNavigateToLowStock: _goToLowStock,
-        onNavigateToTransactions: _goToTransactionHistory,
+      _KeepAlivePage(
+        key: const PageStorageKey('main-home'),
+        child: HomeScreen(
+          onNavigateToPrediksi: _goToPrediksi,
+          onNavigateToStock: _goToStock,
+          onNavigateToLowStock: _goToLowStock,
+          onNavigateToTransactions: _goToTransactionHistory,
+        ),
       ),
-      const StockScreen(),
-      TransactionScreen(
-        initialTab: _transactionInitialTab,
-        onOpenStock: _goToLowStock,
+      const _KeepAlivePage(
+        key: PageStorageKey('main-stock'),
+        child: StockScreen(),
       ),
-      PredictionScreen(onOpenStockForFlower: _goToStockSearch),
+      _KeepAlivePage(
+        key: const PageStorageKey('main-transaction'),
+        child: TransactionScreen(
+          initialTab: _transactionInitialTab,
+          onOpenStock: _goToLowStock,
+        ),
+      ),
+      _KeepAlivePage(
+        key: const PageStorageKey('main-prediction'),
+        child: PredictionScreen(onOpenStockForFlower: _goToStockSearch),
+      ),
     ];
 
     return Scaffold(
@@ -178,8 +215,10 @@ class _MainNavigationState extends State<MainNavigation> {
         behavior: const _NoStretchScrollBehavior(),
         child: PageView(
           controller: _pageController,
-          physics: const ClampingScrollPhysics(),
+          allowImplicitScrolling: true,
+          physics: const PageScrollPhysics(parent: ClampingScrollPhysics()),
           onPageChanged: (index) {
+            if (_currentIndex == index) return;
             setState(() {
               _currentIndex = index;
             });
