@@ -175,6 +175,7 @@ class _StockScreenState extends State<StockScreen> {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppTheme.bgLight,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(200),

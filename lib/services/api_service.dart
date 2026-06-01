@@ -55,6 +55,17 @@ class ApiService {
     };
   }
 
+  static Map<String, String> _guestHeaders() {
+    return const {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+  }
+
+  static String normalizeOtp(String otp) {
+    return otp.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
   static Future<http.Response> _sendRequest(
     Future<http.Response> Function() request,
   ) async {
@@ -93,7 +104,7 @@ class ApiService {
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/login'),
-        headers: await _headers(),
+        headers: _guestHeaders(),
         body: jsonEncode({
           'email': normalizedEmail,
           'password': password,
@@ -257,7 +268,7 @@ class ApiService {
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/forgot-password'),
-        headers: await _headers(),
+        headers: _guestHeaders(),
         body: jsonEncode({'email': normalizedEmail}),
       ),
     );
@@ -267,14 +278,17 @@ class ApiService {
 
   static Future<void> verifyOtp(String email, String otp) async {
     final normalizedEmail = normalizeEmail(email);
+    final normalizedOtp = normalizeOtp(otp);
 
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/verify-otp'),
-        headers: await _headers(),
+        headers: _guestHeaders(),
         body: jsonEncode({
           'email': normalizedEmail,
-          'otp': otp,
+          'otp': normalizedOtp,
+          'otp_code': normalizedOtp,
+          'code': normalizedOtp,
         }),
       ),
     );
@@ -288,14 +302,17 @@ class ApiService {
     String newPassword,
   ) async {
     final normalizedEmail = normalizeEmail(email);
+    final normalizedOtp = normalizeOtp(otp);
 
     final response = await _sendRequest(
       () async => http.post(
         Uri.parse('$baseUrl/auth/reset-password'),
-        headers: await _headers(),
+        headers: _guestHeaders(),
         body: jsonEncode({
           'email': normalizedEmail,
-          'otp': otp,
+          'otp': normalizedOtp,
+          'otp_code': normalizedOtp,
+          'code': normalizedOtp,
           'password': newPassword,
           'password_confirmation': newPassword,
         }),
