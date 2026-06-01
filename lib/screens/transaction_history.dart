@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../models/transaction.dart';
+import '../models/user.dart';
 import '../theme/app_theme.dart';
 
 class _NoStretchScrollBehavior extends MaterialScrollBehavior {
@@ -119,7 +120,7 @@ class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
   @override
   Widget build(BuildContext context) {
     final txProvider = context.watch<TransactionProvider>();
-    final currentUser = context.watch<AuthProvider>().user;
+    final User? currentUser = context.watch<AuthProvider>().user;
 
     if (txProvider.isLoading) {
       return const _HistorySkeletonList();
@@ -158,8 +159,10 @@ class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
             txProvider.transactions,
             currentUser,
           ).length,
-          onRefresh: () =>
-              context.read<TransactionProvider>().loadTransactions(),
+          isRefreshing: txProvider.isRefreshing,
+          onRefresh: () => context
+              .read<TransactionProvider>()
+              .loadTransactions(showLoading: false),
           onChanged: (filter) => setState(() => _activeFilter = filter),
         ),
         Expanded(
@@ -197,7 +200,7 @@ class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
 
   List<Transaction> _filteredTransactions(
     List<Transaction> transactions,
-    currentUser,
+    User? currentUser,
   ) {
     switch (_activeFilter) {
       case _HistoryFilter.today:
@@ -221,19 +224,56 @@ class _TransactionHistoryTabState extends State<TransactionHistoryTab> {
 
   List<Transaction> _mineTransactions(
     List<Transaction> transactions,
-    currentUser,
+    User? currentUser,
   ) {
     if (currentUser == null) return [];
 
-    final currentId = currentUser.id.toString();
-    final currentName = currentUser.name.toString().trim().toLowerCase();
+    final currentId = currentUser.accountId.trim().isNotEmpty
+        ? currentUser.accountId.trim()
+        : currentUser.id.toString().trim();
+    final currentEmail = _normalizedEmail(currentUser.email);
+    final currentName = _normalizedName(currentUser.name);
 
-    return transactions.where((tx) {
+    final matched = transactions.where((tx) {
       final txId = tx.cashierId.trim();
-      final txName = tx.cashierName.trim().toLowerCase();
-      return txId == currentId ||
-          (currentName.isNotEmpty && txName == currentName);
+      if (_isUsableId(currentId) && _isUsableId(txId)) {
+        return txId == currentId;
+      }
+
+      final txEmail = _normalizedEmail(tx.cashierEmail);
+      if (currentEmail.isNotEmpty && txEmail.isNotEmpty) {
+        return txEmail == currentEmail;
+      }
+
+      final txName = _normalizedName(tx.cashierName);
+      return currentName.isNotEmpty && txName == currentName;
     }).toList();
+
+    if (matched.isNotEmpty) return matched;
+
+    final hasStableCashierIdentity = transactions.any((tx) {
+      return _isUsableId(tx.cashierId) ||
+          _normalizedEmail(tx.cashierEmail).isNotEmpty;
+    });
+
+    if (currentUser.isCashier && !hasStableCashierIdentity) {
+      return _todayTransactions(transactions);
+    }
+
+    return matched;
+  }
+
+  bool _isUsableId(String value) {
+    final id = value.trim().toLowerCase();
+    return id.isNotEmpty && id != '-' && id != '0' && id != 'null';
+  }
+
+  String _normalizedName(Object? value) {
+    return value?.toString().trim().toLowerCase() ?? '';
+  }
+
+  String _normalizedEmail(Object? value) {
+    return value?.toString().trim().toLowerCase() ?? '';
   }
 }
 
@@ -242,6 +282,7 @@ class _HistoryFilterBar extends StatelessWidget {
   final int allCount;
   final int todayCount;
   final int mineCount;
+  final bool isRefreshing;
   final Future<void> Function() onRefresh;
   final ValueChanged<_HistoryFilter> onChanged;
 
@@ -250,6 +291,7 @@ class _HistoryFilterBar extends StatelessWidget {
     required this.allCount,
     required this.todayCount,
     required this.mineCount,
+    required this.isRefreshing,
     required this.onRefresh,
     required this.onChanged,
   });
@@ -261,7 +303,7 @@ class _HistoryFilterBar extends StatelessWidget {
       case _HistoryFilter.today:
         return 'Menampilkan transaksi semua kasir yang bertanggal hari ini.';
       case _HistoryFilter.mine:
-        return 'Menampilkan transaksi yang cocok dengan akun kasir yang sedang masuk.';
+        return 'Dicocokkan dari ID/email kasir. Transaksi lama tanpa identitas kasir memakai tanggal hari ini.';
     }
   }
 
@@ -289,7 +331,7 @@ class _HistoryFilterBar extends StatelessWidget {
                 button: true,
                 label: 'Perbarui riwayat transaksi',
                 child: InkWell(
-                  onTap: onRefresh,
+                  onTap: isRefreshing ? null : onRefresh,
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     width: 38,
@@ -299,11 +341,22 @@ class _HistoryFilterBar extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: const Color(0xFFF5C6D8)),
                     ),
-                    child: const Icon(
-                      Icons.refresh_rounded,
-                      size: 20,
-                      color: AppTheme.primary,
-                    ),
+                    child: isRefreshing
+                        ? const Center(
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.primary,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.refresh_rounded,
+                            size: 20,
+                            color: AppTheme.primary,
+                          ),
                   ),
                 ),
               ),

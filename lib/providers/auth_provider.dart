@@ -61,6 +61,7 @@ class AuthProvider extends ChangeNotifier {
 
       await ApiService.saveToken(token.toString());
       await ApiService.saveLastLoginEmail(email);
+      await ApiService.saveCurrentUser(userJson);
 
       _user = User.fromJson(userJson);
       _status = AuthStatus.authenticated;
@@ -137,6 +138,23 @@ class AuthProvider extends ChangeNotifier {
     final token = await ApiService.getToken();
 
     if (token != null) {
+      final userJson = await ApiService.getCurrentUser();
+      if (userJson != null) {
+        userJson['token'] = token;
+        _user = User.fromJson(userJson);
+      } else {
+        final lastEmail = await ApiService.getLastLoginEmail();
+        _user = lastEmail == null || lastEmail.trim().isEmpty
+            ? null
+            : User(
+                id: 0,
+                accountId: '',
+                name: '',
+                email: lastEmail,
+                role: UserRole.kasir,
+                token: token,
+              );
+      }
       _status = AuthStatus.authenticated;
     } else {
       _user = null;

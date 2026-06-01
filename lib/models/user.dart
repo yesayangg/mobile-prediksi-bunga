@@ -1,5 +1,6 @@
 class User {
   final int id;
+  final String accountId;
   final String name;
   final String email;
   final UserRole role;
@@ -8,19 +9,23 @@ class User {
 
   User({
     required this.id,
+    String? accountId,
     required this.name,
     required this.email,
     required this.role,
     this.avatarUrl,
     required this.token,
-  });
+  }) : accountId = accountId ?? id.toString();
 
   bool get isOwner => role == UserRole.owner || role == UserRole.admin;
   bool get isCashier => role == UserRole.cashier || role == UserRole.kasir;
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+
     return User(
-      id: _parseInt(json['id']),
+      id: _parseInt(rawId),
+      accountId: _parseText(rawId),
       name: json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       role: UserRoleParser.fromString(json['role']?.toString()),
@@ -35,8 +40,12 @@ class User {
     return 0;
   }
 
+  static String _parseText(dynamic value) {
+    return value?.toString().trim() ?? '';
+  }
+
   Map<String, dynamic> toJson() => {
-        'id': id,
+        'id': accountId.isNotEmpty ? accountId : id,
         'name': name,
         'email': email,
         'role': role.name,

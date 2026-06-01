@@ -13,6 +13,7 @@ class ApiService {
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static const String _lastLoginEmailKey = 'last_login_email';
+  static const String _currentUserKey = 'current_user';
 
   static void Function(String message)? onSessionExpired;
 
@@ -28,6 +29,7 @@ class ApiService {
 
   static Future<void> clearToken() async {
     await _storage.delete(key: 'auth_token');
+    await clearCurrentUser();
   }
 
   static Future<void> clearLastLoginEmail() async {
@@ -43,6 +45,29 @@ class ApiService {
     if (normalizedEmail.isEmpty) return;
 
     await _storage.write(key: _lastLoginEmailKey, value: normalizedEmail);
+  }
+
+  static Future<void> saveCurrentUser(Map<String, dynamic> user) async {
+    await _storage.write(key: _currentUserKey, value: jsonEncode(user));
+  }
+
+  static Future<Map<String, dynamic>?> getCurrentUser() async {
+    final raw = await _storage.read(key: _currentUserKey);
+    if (raw == null || raw.trim().isEmpty) return null;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      await clearCurrentUser();
+    }
+
+    return null;
+  }
+
+  static Future<void> clearCurrentUser() async {
+    await _storage.delete(key: _currentUserKey);
   }
 
   static Future<Map<String, String>> _headers() async {
