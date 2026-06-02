@@ -4,6 +4,34 @@ Sistem mobile untuk operasional toko bunga. Mendukung dua role: **Kasir** dan **
 
 ---
 
+## Overall Architecture
+
+Arsitektur aplikasi menggunakan Flutter sebagai client multi-platform untuk Android, iOS, dan Web. Aplikasi berkomunikasi dengan backend REST API online untuk autentikasi, stok bunga, transaksi, dashboard, prediksi permintaan, dan notifikasi. Data utama tersimpan di **MongoDB Atlas**, sedangkan proses prediksi penjualan dijalankan oleh **model Linear Regression berbasis Flask yang sudah online**.
+
+```mermaid
+flowchart TD
+    A[User Kasir / Owner] --> B[Flutter App Android / iOS / Web]
+    B --> C[Screens]
+    C --> D[Provider State Management]
+    D --> E[ApiService HTTP Client]
+    E --> F[Backend REST API Online]
+    F --> G[(MongoDB Atlas)]
+    F --> H[Flask Prediction Service]
+    H --> J[Linear Regression Model]
+    J --> F
+    F --> I[Notification Service]
+```
+
+Layer utama:
+- **Screens** menangani tampilan dan interaksi pengguna.
+- **Providers** mengelola state aplikasi seperti auth, stok, transaksi, prediksi, dan notifikasi.
+- **ApiService** menjadi penghubung antara aplikasi Flutter dan backend REST API online.
+- **Backend REST API** memproses request aplikasi, membaca/menulis data ke MongoDB Atlas, dan menyediakan endpoint untuk mobile.
+- **MongoDB Atlas** menyimpan data user, stok bunga, transaksi, dan hasil prediksi.
+- **Flask Prediction Service** menjalankan model Linear Regression secara online dan mengembalikan hasil prediksi ke backend.
+
+---
+
 ## 📁 Struktur Project
 
 ```
@@ -48,11 +76,16 @@ flutter pub get
 ```
 
 ### 3. Konfigurasi Backend URL
-Buka `lib/services/api_service.dart` dan ubah:
+Secara default aplikasi memakai URL lokal:
+
 ```dart
-static const String baseUrl = 'https://api.tokobungamu.com/api';
-// Ganti dengan URL backend kamu, contoh:
-// static const String baseUrl = 'http://192.168.1.100:8000/api';
+http://127.0.0.1:8000/api
+```
+
+Untuk memakai backend online, jalankan aplikasi dengan `--dart-define`:
+
+```bash
+flutter run --dart-define=API_BASE_URL=https://domain-backend-kamu.com/api
 ```
 
 ### 4. Jalankan app
@@ -161,19 +194,9 @@ flutter run
 - [ ] Implementasi refresh token otomatis
 - [ ] Tambah fitur input/update stok manual oleh admin
 - [ ] Unit test untuk providers
-# flower_shop
 
-A new Flutter project.
+---
 
-## Getting Started
+## Lisensi
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Proyek ini menggunakan **MIT License**. Detail lisensi tersedia pada file [LICENSE](LICENSE).
